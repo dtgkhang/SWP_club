@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { Home, Wallet } from 'lucide-react-native';
+import { Home, Users, Wallet } from 'lucide-react-native';
 import { COLORS } from '../../constants/theme';
 
 export default function StudentLayout() {
@@ -10,12 +10,17 @@ export default function StudentLayout() {
                 tabBarActiveTintColor: COLORS.primary,
                 tabBarInactiveTintColor: COLORS.textLight,
                 tabBarStyle: {
-                    borderTopWidth: 0,
-                    elevation: 0,
-                    shadowOpacity: 0,
+                    borderTopWidth: 1,
+                    borderTopColor: '#F3F4F6', // gray-100
+                    elevation: 5,
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: -2 },
+                    shadowOpacity: 0.1,
+                    shadowRadius: 4,
                     height: 60,
                     paddingBottom: 10,
                     paddingTop: 10,
+                    backgroundColor: '#FFFFFF',
                 },
                 tabBarLabelStyle: {
                     fontSize: 12,
@@ -28,6 +33,13 @@ export default function StudentLayout() {
                 options={{
                     title: 'Discovery',
                     tabBarIcon: ({ color, size }) => <Home color={color} size={size} />,
+                }}
+            />
+            <Tabs.Screen
+                name="clubs"
+                options={{
+                    title: 'Clubs',
+                    tabBarIcon: ({ color, size }) => <Users color={color} size={size} />,
                 }}
             />
             <Tabs.Screen

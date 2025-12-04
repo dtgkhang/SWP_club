@@ -1,21 +1,25 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowLeft, CheckCircle } from 'lucide-react-native';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function PaymentScreen() {
-    const { amount } = useLocalSearchParams();
+    const { amount, isFree } = useLocalSearchParams();
     const router = useRouter();
-    const [status, setStatus] = useState('PENDING'); // PENDING, PROCESSING, SUCCESS
+    const [status, setStatus] = useState(isFree === 'true' ? 'SUCCESS' : 'PENDING'); // PENDING, PROCESSING, SUCCESS
+
+    useEffect(() => {
+        if (isFree === 'true') {
+            // Auto-success for free events, but let user click to continue
+            setStatus('SUCCESS');
+        }
+    }, [isFree]);
 
     const handlePayment = () => {
         setStatus('PROCESSING');
         setTimeout(() => {
             setStatus('SUCCESS');
-            setTimeout(() => {
-                router.replace('/(student)/wallet');
-            }, 1500);
         }, 2000);
     };
 
@@ -23,8 +27,18 @@ export default function PaymentScreen() {
         return (
             <SafeAreaView className="flex-1 bg-white justify-center items-center p-6">
                 <CheckCircle size={80} color="#10B981" />
-                <Text className="text-2xl font-bold text-gray-900 mt-6 mb-2">Payment Successful!</Text>
-                <Text className="text-gray-500 text-center">Redirecting to your wallet...</Text>
+                <Text className="text-2xl font-bold text-gray-900 mt-6 mb-2">
+                    {isFree === 'true' ? 'Registration Successful!' : 'Payment Successful!'}
+                </Text>
+                <Text className="text-gray-500 text-center mb-8">
+                    {isFree === 'true' ? 'Your ticket has been added to your wallet.' : 'Thank you for your payment. Your ticket is ready.'}
+                </Text>
+                <TouchableOpacity
+                    className="bg-primary px-8 py-3 rounded-full shadow-md shadow-indigo-200"
+                    onPress={() => router.replace('/(student)/wallet')}
+                >
+                    <Text className="text-white font-bold">Go to My Wallet</Text>
+                </TouchableOpacity>
             </SafeAreaView>
         );
     }
@@ -64,12 +78,21 @@ export default function PaymentScreen() {
                             <Text className="text-gray-600 font-bold text-lg">Processing...</Text>
                         </TouchableOpacity>
                     ) : (
-                        <TouchableOpacity
-                            className="w-full bg-primary py-4 rounded-xl items-center shadow-md shadow-indigo-200"
-                            onPress={handlePayment}
-                        >
-                            <Text className="text-white font-bold text-lg">Simulate Payment</Text>
-                        </TouchableOpacity>
+                        <View className="w-full space-y-4 gap-4">
+                            <TouchableOpacity
+                                className="w-full bg-white border border-gray-300 py-4 rounded-xl items-center flex-row justify-center"
+                                onPress={() => alert('Opening Bank App...')}
+                            >
+                                <Text className="text-gray-700 font-bold text-lg">Open Bank App</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                className="w-full bg-primary py-4 rounded-xl items-center shadow-md shadow-indigo-200"
+                                onPress={handlePayment}
+                            >
+                                <Text className="text-white font-bold text-lg">Simulate Payment</Text>
+                            </TouchableOpacity>
+                        </View>
                     )}
                 </View>
             </View>

@@ -84,10 +84,18 @@ export default function EventDetail() {
             <View className="absolute bottom-0 w-full p-6 bg-white border-t border-gray-100 shadow-lg">
                 <TouchableOpacity
                     className="w-full bg-primary py-4 rounded-xl items-center shadow-md shadow-indigo-200"
-                    onPress={() => router.push({ pathname: '/(student)/payment', params: { eventId: event.id, amount: event.price } })}
+                    onPress={() => {
+                        if (event.price === 0) {
+                            // Free Event -> Direct Register
+                            router.push({ pathname: '/(student)/payment', params: { eventId: event.id, amount: 0, isFree: 'true' } });
+                        } else {
+                            // Paid Event -> PayOS
+                            router.push({ pathname: '/(student)/payment', params: { eventId: event.id, amount: event.price } });
+                        }
+                    }}
                 >
                     <Text className="text-white font-bold text-lg">
-                        {event.price === 0 ? 'Register Now' : 'Buy Ticket'}
+                        {event.price === 0 ? 'Register for Free' : 'Buy Ticket'}
                     </Text>
                 </TouchableOpacity>
             </View>
