@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { Home, Users, Wallet } from 'lucide-react-native';
+import { Home, User, Users, Wallet } from 'lucide-react-native';
 import { COLORS } from '../../constants/theme';
 
 export default function StudentLayout() {
@@ -47,6 +47,13 @@ export default function StudentLayout() {
                 options={{
                     title: 'My Wallet',
                     tabBarIcon: ({ color, size }) => <Wallet color={color} size={size} />,
+                }}
+            />
+            <Tabs.Screen
+                name="profile"
+                options={{
+                    title: 'Profile',
+                    tabBarIcon: ({ color, size }) => <User color={color} size={size} />,
                 }}
             />
             <Tabs.Screen
