@@ -1,22 +1,45 @@
 import { useRouter } from 'expo-router';
 import { Calendar, Lock, MapPin, Search } from 'lucide-react-native';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { FlatList, Image, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CURRENT_USER, EVENTS } from '../../constants/mockData';
+import { authService, User } from '../../services/auth.service';
 
 export default function StudentHome() {
     const router = useRouter();
     const [filter, setFilter] = useState('ALL'); // ALL, PUBLIC, INTERNAL
+    // combined type for mock and real user
+    const [user, setUser] = useState<any>(CURRENT_USER);
+
+    useEffect(() => {
+        loadProfile();
+    }, []);
+
+    const loadProfile = async () => {
+        try {
+            const { user: profile } = await authService.getProfile();
+            if (profile) {
+                // Merge profile, prioritizing profile.fullName over mock name
+                setUser((prev: any) => ({ ...prev, ...profile, name: profile.fullName || prev.name }));
+            }
+        } catch (error) {
+            console.log('Error fetching profile:', error);
+        }
+    };
 
     // Filter events
     const visibleEvents = EVENTS.filter(event => {
+        const clubId = event.clubId || '';
+        // Mock logic: check mock memberships
+        const userMemberships = (CURRENT_USER as any).memberships || [];
+
         if (filter === 'PUBLIC') return event.type === 'PUBLIC';
-        if (filter === 'INTERNAL') return event.type === 'INTERNAL' && CURRENT_USER.memberships.includes(event.clubId);
-        return event.type === 'PUBLIC' || (event.type === 'INTERNAL' && CURRENT_USER.memberships.includes(event.clubId));
+        if (filter === 'INTERNAL') return event.type === 'INTERNAL' && clubId && userMemberships.includes(clubId);
+        return event.type === 'PUBLIC' || (event.type === 'INTERNAL' && clubId && userMemberships.includes(clubId));
     });
 
-    const renderItem = ({ item }) => (
+    const renderItem = ({ item }: { item: typeof EVENTS[0] }) => (
         <TouchableOpacity
             className="bg-white rounded-2xl mb-4 shadow-sm shadow-gray-200 overflow-hidden border border-gray-100"
             onPress={() => router.push(`/(student)/events/${item.id}`)}
@@ -54,7 +77,7 @@ export default function StudentHome() {
             <View className="flex-row justify-between items-center mb-6">
                 <View>
                     <Text className="text-gray-500 text-sm">Welcome back,</Text>
-                    <Text className="text-2xl font-bold text-gray-900">{CURRENT_USER.name}</Text>
+                    <Text className="text-2xl font-bold text-gray-900">{user.name || user.fullName}</Text>
                 </View>
                 <View className="w-10 h-10 bg-gray-200 rounded-full items-center justify-center border border-gray-300">
                     <Text className="font-bold text-gray-600">S</Text>

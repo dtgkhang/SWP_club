@@ -7,3 +7,8 @@ export const COLORS = {
   white: '#FFFFFF',
   danger: '#EF4444',
 };
+
+export const Colors = {
+  light: COLORS,
+  dark: COLORS,
+};

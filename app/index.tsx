@@ -1,8 +1,11 @@
+
 import { useRouter } from 'expo-router';
 import { Eye, EyeOff, Lock, Mail } from 'lucide-react-native';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { authService } from '../services/auth.service';
+import { CURRENT_USER } from '../constants/mockData';
 
 export default function LoginScreen() {
     const router = useRouter();
@@ -10,12 +13,31 @@ export default function LoginScreen() {
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
 
-    const handleLogin = () => {
-        // Mock login logic
-        if (email.includes('staff')) {
-            router.replace('/(staff)/dashboard');
-        } else {
-            router.replace('/(student)/home');
+    const [loading, setLoading] = useState(false);
+
+    const handleLogin = async () => {
+        if (!email || !password) {
+            alert('Please enter email and password');
+            return;
+        }
+
+        try {
+            setLoading(true);
+            const response = await authService.login(email, password);
+            console.log('Login success:', response);
+
+            // Navigate based on some logic, or just default to student home
+            // If the user is staff/admin, the BE might tell us, but for now we keep simple redirection
+            // Assuming response contains user role or we assume student for Mobile App
+            if (email.includes('staff')) { // Keep this hack for demo if BE doesn't return role immediately or just rely on manual input
+                router.replace('/(staff)/dashboard');
+            } else {
+                router.replace('/(student)/home');
+            }
+        } catch (error: any) {
+            alert(error.message || 'Login failed');
+        } finally {
+            setLoading(false);
         }
     };
 

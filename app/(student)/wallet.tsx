@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { TICKETS } from '../../constants/mockData';
 
 export default function WalletScreen() {
-    const renderItem = ({ item }) => (
+    const renderItem = ({ item }: { item: any }) => (
         <View className="bg-white rounded-2xl mb-4 shadow-sm shadow-gray-200 overflow-hidden border border-gray-100 mx-1">
             <View className="p-5 flex-row justify-between items-center bg-gray-900">
                 <View className="flex-1 mr-4">
