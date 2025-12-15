@@ -3,19 +3,21 @@ import api, { setAccessToken } from './api';
 export interface User {
     id: string;
     email: string;
-    fullName: string;
+    fullName?: string;
     studentCode?: string;
     phone?: string;
     avatarUrl?: string;
-    role: 'ADMIN' | 'USER';
-    isActive: boolean;
-    emailVerified: boolean;
+    auth_role?: string; // BE returns auth_role (e.g., STUDENT, STAFF, ADMIN)
+    role?: string; // Alias for auth_role used in some contexts
+    isActive?: boolean;
+    emailVerified?: boolean;
+    memberships?: Array<{ clubId: string; role: string; status: string }>;
 }
 
 interface LoginResponse {
-    message: string;
+    success: boolean;
     accessToken: string;
-    user: User; // Assuming BE returns user info on login, if not we fetch it
+    user: User;
 }
 
 interface RegisterData {

@@ -1,10 +1,11 @@
 import { Platform } from 'react-native';
 
-// Use localhost for iOS/Web and 10.0.2.2 for Android Emulator
+// Use your Mac's IP address for device/simulator to connect to backend
+// Replace with your actual IP if different
 const DEV_API_URL = Platform.select({
-    android: 'http://10.0.2.2:3000/api',
-    ios: 'http://localhost:3000/api',
-    default: 'http://localhost:3000/api',
+    android: 'http://10.0.2.2:5001/api', // Android Emulator special IP
+    ios: 'http://192.168.10.121:5001/api', // Mac's actual IP
+    default: 'http://localhost:5001/api', // Web
 });
 
 // TODO: Replace with environment variable if possible

@@ -5,14 +5,36 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        primary: '#4F46E5', // Indigo 600
-        secondary: '#10B981', // Emerald 500
-        danger: '#EF4444', // Red 500
-        background: '#F9FAFB', // Gray 50
+        // Primary (FPT Orange)
+        primary: '#FF8A3D',
+        'primary-hover': '#F97316',
+        'primary-soft': '#FFF3E8',
+
+        // Secondary (Academic Blue)
+        secondary: '#2563EB',
+        'secondary-soft': '#EFF6FF',
+
+        // Neutral
+        text: '#0F172A',
+        'text-secondary': '#475569',
+        textLight: '#64748B',
+        border: '#E2E8F0',
+        background: '#F8FAFC',
         card: '#FFFFFF',
-        text: '#1F2937', // Gray 800
-        textLight: '#6B7280', // Gray 500
-      }
+
+        // Semantic
+        success: '#22C55E',
+        'success-soft': '#DCFCE7',
+        warning: '#F59E0B',
+        'warning-soft': '#FEF3C7',
+        danger: '#EF4444',
+        'danger-soft': '#FEE2E2',
+        info: '#38BDF8',
+        'info-soft': '#E0F2FE',
+      },
+      fontFamily: {
+        sans: ['Inter', 'system-ui', 'sans-serif'],
+      },
     },
   },
   plugins: [],

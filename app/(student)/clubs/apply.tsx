@@ -1,99 +1,115 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ArrowLeft, CheckCircle } from 'lucide-react-native';
+import { ArrowLeft, CheckCircle, Send } from 'lucide-react-native';
 import { useState } from 'react';
-import { Alert, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { COLORS } from '../../../constants/theme';
+import { clubService } from '../../../services/club.service';
 
 export default function ClubApplication() {
-    const { clubName, type, fee } = useLocalSearchParams();
+    const { clubId, clubName, fee } = useLocalSearchParams();
     const router = useRouter();
-    const [studentId, setStudentId] = useState('');
     const [reason, setReason] = useState('');
     const [submitted, setSubmitted] = useState(false);
+    const [loading, setLoading] = useState(false);
 
-    const handleSubmit = () => {
-        if (!studentId || !reason) {
-            // Keep Alert for validation error as it's simple
-            Alert.alert('Error', 'Please fill in all fields');
+    const handleSubmit = async () => {
+        if (!reason.trim()) {
+            Alert.alert('Required', 'Please tell us why you want to join');
             return;
         }
-        setSubmitted(true);
 
-        // Simulate API call
-        setTimeout(() => {
-            // After the "sending" phase, the `submitted` state remains true
-            // to display the success message.
-            // No need to change `submitted` here, as it's already true.
-            // The success view will be rendered because `submitted` is true.
-        }, 1500);
+        try {
+            setLoading(true);
+            await clubService.applyToClub(clubId as string, reason);
+            setSubmitted(true);
+        } catch (error: any) {
+            Alert.alert('Error', error.message || 'Failed to submit application');
+        } finally {
+            setLoading(false);
+        }
     };
 
+    // Success State
     if (submitted) {
+        const feeAmount = Number(fee) || 0;
         return (
-            <SafeAreaView className="flex-1 bg-white justify-center items-center p-6">
-                <View className="items-center">
-                    <CheckCircle size={80} color="#10B981" />
-                    <Text className="text-2xl font-bold text-gray-900 mt-6 mb-2">
-                        {type === 'PAID' ? 'Application Received' : 'Application Sent'}
-                    </Text>
-                    <Text className="text-gray-500 text-center mb-8 leading-6">
-                        {type === 'PAID'
-                            ? `We have received your application to ${clubName}. You will be contacted for an interview. Membership fee: ${Number(fee).toLocaleString()} VND.`
-                            : `Your application to ${clubName} has been submitted successfully! You will be notified once approved.`}
-                    </Text>
-                    <TouchableOpacity
-                        className="bg-primary px-8 py-3 rounded-full shadow-md shadow-indigo-200"
-                        onPress={() => router.navigate('/(student)/clubs')}
-                    >
-                        <Text className="text-white font-bold">Back to Clubs</Text>
-                    </TouchableOpacity>
+            <SafeAreaView className="flex-1 bg-background justify-center items-center p-6">
+                <View className="bg-success-soft w-24 h-24 rounded-full items-center justify-center mb-6">
+                    <CheckCircle size={48} color={COLORS.success} />
                 </View>
+                <Text className="text-text text-2xl font-bold mb-2 text-center">Application Sent!</Text>
+                <Text className="text-text-secondary text-center mb-2">
+                    Your application to <Text className="font-bold">{clubName}</Text> has been submitted.
+                </Text>
+                {feeAmount > 0 && (
+                    <Text className="text-text-secondary text-center mb-6">
+                        Membership fee: <Text className="text-primary font-bold">{feeAmount.toLocaleString()}₫</Text>
+                    </Text>
+                )}
+                <TouchableOpacity
+                    className="bg-primary px-8 py-4 rounded-xl w-full items-center"
+                    onPress={() => router.navigate('/(student)/clubs')}
+                >
+                    <Text className="text-white font-bold">Back to Clubs</Text>
+                </TouchableOpacity>
             </SafeAreaView>
-        )
+        );
     }
 
     return (
-        <SafeAreaView className="flex-1 bg-gray-50">
-            <View className="p-4 flex-row items-center border-b border-gray-200 bg-white">
+        <SafeAreaView className="flex-1 bg-background">
+            {/* Header */}
+            <View className="flex-row items-center px-5 py-4 bg-card border-b border-border">
                 <TouchableOpacity onPress={() => router.back()} className="mr-4">
-                    <ArrowLeft size={24} color="#000" />
+                    <ArrowLeft size={24} color={COLORS.text} />
                 </TouchableOpacity>
-                <Text className="text-lg font-bold" numberOfLines={1}>Apply to {clubName}</Text>
+                <View className="flex-1">
+                    <Text className="text-text text-lg font-bold" numberOfLines={1}>Apply to Join</Text>
+                    <Text className="text-text-secondary text-sm" numberOfLines={1}>{clubName}</Text>
+                </View>
             </View>
 
-            <ScrollView className="flex-1 p-4" showsVerticalScrollIndicator={false}>
-                <View className="bg-white p-6 rounded-2xl shadow-sm shadow-gray-200 mb-6">
-                    <Text className="text-gray-500 mb-6">
-                        Please fill out the form below to apply for membership. The club leader will review your application.
+            <ScrollView className="flex-1 p-5" showsVerticalScrollIndicator={false}>
+                {/* Info Card */}
+                <View className="bg-secondary-soft border border-secondary/20 rounded-xl p-4 mb-6">
+                    <Text className="text-secondary font-medium text-sm">
+                        📝 The club leader will review your application. You'll be notified once it's approved.
+                    </Text>
+                </View>
+
+                {/* Form */}
+                <View className="bg-card border border-border rounded-xl p-5">
+                    <Text className="text-text font-bold text-base mb-4">Why do you want to join?</Text>
+
+                    <TextInput
+                        className="bg-background border border-border rounded-xl p-4 text-text min-h-[150px]"
+                        placeholder="Share your interests, skills, and what you hope to contribute..."
+                        placeholderTextColor="#94A3B8"
+                        multiline
+                        textAlignVertical="top"
+                        value={reason}
+                        onChangeText={setReason}
+                    />
+
+                    <Text className="text-text-secondary text-xs mt-2 mb-6">
+                        Write at least a few sentences to help the club leader understand your motivation.
                     </Text>
 
-                    <View className="mb-4">
-                        <Text className="text-gray-700 font-medium mb-2">Student ID</Text>
-                        <TextInput
-                            className="bg-gray-50 p-4 rounded-xl text-gray-900 border border-gray-200"
-                            placeholder="e.g. SE123456"
-                            value={studentId}
-                            onChangeText={setStudentId}
-                        />
-                    </View>
-
-                    <View className="mb-6">
-                        <Text className="text-gray-700 font-medium mb-2">Why do you want to join?</Text>
-                        <TextInput
-                            className="bg-gray-50 p-4 rounded-xl text-gray-900 border border-gray-200 h-32"
-                            placeholder="Tell us about your interest and skills..."
-                            multiline
-                            textAlignVertical="top"
-                            value={reason}
-                            onChangeText={setReason}
-                        />
-                    </View>
-
                     <TouchableOpacity
-                        className="w-full bg-primary py-4 rounded-xl items-center shadow-md shadow-indigo-200"
+                        className="w-full bg-primary py-4 rounded-xl items-center flex-row justify-center"
                         onPress={handleSubmit}
+                        disabled={loading}
+                        style={{ opacity: loading ? 0.7 : 1 }}
                     >
-                        <Text className="text-white font-bold text-lg">Submit Application</Text>
+                        {loading ? (
+                            <ActivityIndicator color="#FFF" />
+                        ) : (
+                            <>
+                                <Send size={20} color="#FFF" />
+                                <Text className="text-white font-bold ml-2">Submit Application</Text>
+                            </>
+                        )}
                     </TouchableOpacity>
                 </View>
             </ScrollView>
