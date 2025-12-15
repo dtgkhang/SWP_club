@@ -1,18 +1,34 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ArrowLeft, Calendar, Heart, MapPin, Share2, Sparkles, Users } from 'lucide-react-native';
+import { ArrowLeft, Calendar, Crown, Heart, Share2, Sparkles, Users } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Dimensions, Image, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../../../constants/theme';
+import { useToast } from '../../../contexts/ToastContext';
 import { Club, clubService } from '../../../services/club.service';
 
 const { width } = Dimensions.get('window');
 
+interface Member {
+    id: string;
+    role: string;
+    status: string;
+    user: {
+        id: string;
+        fullName: string;
+        email: string;
+    };
+}
+
 export default function ClubDetail() {
-    const { id } = useLocalSearchParams();
+    const { id, isMember } = useLocalSearchParams();
     const router = useRouter();
+    const { showError, showSuccess } = useToast();
     const [club, setClub] = useState<Club | null>(null);
+    const [members, setMembers] = useState<Member[]>([]);
     const [loading, setLoading] = useState(true);
+    const [loadingMembers, setLoadingMembers] = useState(false);
+    const isUserMember = isMember === 'true';
 
     useEffect(() => {
         if (id) loadClubDetail();
@@ -23,10 +39,36 @@ export default function ClubDetail() {
             setLoading(true);
             const data = await clubService.getClubDetail(id as string);
             setClub(data);
-        } catch (error) {
-            console.error(error);
+
+            // Load members if user is a member
+            if (isUserMember && data) {
+                loadMembers(data.id);
+            }
+        } catch (error: any) {
+            showError('Error', 'Could not load club details');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const loadMembers = async (clubId: string) => {
+        try {
+            setLoadingMembers(true);
+            const data = await clubService.getClubMembers(clubId);
+            setMembers(data);
+        } catch (error) {
+            console.log('Could not load members:', error);
+        } finally {
+            setLoadingMembers(false);
+        }
+    };
+
+    const getRoleBadgeColor = (role: string) => {
+        switch (role) {
+            case 'LEADER': return { bg: 'bg-primary-soft', text: 'text-primary' };
+            case 'TREASURER': return { bg: 'bg-success-soft', text: 'text-success' };
+            case 'STAFF': return { bg: 'bg-secondary-soft', text: 'text-secondary' };
+            default: return { bg: 'bg-background', text: 'text-text-secondary' };
         }
     };
 
@@ -54,7 +96,7 @@ export default function ClubDetail() {
             <View className="relative">
                 <Image
                     source={{ uri: club.logoUrl || 'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=800' }}
-                    style={{ width, height: 260 }}
+                    style={{ width, height: 240 }}
                     resizeMode="cover"
                 />
                 <View className="absolute inset-0 bg-black/30" />
@@ -78,13 +120,20 @@ export default function ClubDetail() {
                         </View>
                     </View>
                 </SafeAreaView>
+
+                {/* Member Badge */}
+                {isUserMember && (
+                    <View className="absolute bottom-4 left-4 bg-success px-4 py-2 rounded-xl">
+                        <Text className="text-white font-bold">Member</Text>
+                    </View>
+                )}
             </View>
 
             {/* Content */}
             <ScrollView
-                className="flex-1 -mt-8 bg-background rounded-t-3xl"
+                className="flex-1 -mt-6 bg-background rounded-t-3xl"
                 showsVerticalScrollIndicator={false}
-                contentContainerStyle={{ paddingBottom: 140 }}
+                contentContainerStyle={{ paddingBottom: isUserMember ? 30 : 140 }}
             >
                 <View className="px-5 pt-6">
                     {/* Club Info */}
@@ -107,13 +156,11 @@ export default function ClubDetail() {
                         <View className="bg-card border border-border rounded-2xl p-4 mb-5">
                             <Text className="text-text-secondary text-xs font-medium uppercase mb-3">Club Leader</Text>
                             <View className="flex-row items-center">
-                                <View className="w-14 h-14 bg-secondary rounded-xl items-center justify-center mr-4">
-                                    <Text className="text-white font-bold text-xl">
-                                        {club.leader.fullName?.charAt(0) || 'L'}
-                                    </Text>
+                                <View className="w-12 h-12 bg-primary rounded-xl items-center justify-center mr-3">
+                                    <Crown size={20} color="#FFF" />
                                 </View>
                                 <View className="flex-1">
-                                    <Text className="text-text font-bold text-base">{club.leader.fullName || 'Unknown'}</Text>
+                                    <Text className="text-text font-bold">{club.leader.fullName || 'Unknown'}</Text>
                                     <Text className="text-text-secondary text-sm">{club.leader.email}</Text>
                                 </View>
                             </View>
@@ -124,48 +171,74 @@ export default function ClubDetail() {
                     <View className="mb-5">
                         <Text className="text-text font-bold text-lg mb-3">About</Text>
                         <Text className="text-text-secondary leading-6">
-                            {club.description || 'Welcome to our club! We are a passionate community dedicated to learning and growing together. Join us to connect with like-minded students and participate in exciting activities.'}
+                            {club.description || 'Welcome to our club! We are a community dedicated to learning and growing together.'}
                         </Text>
                     </View>
 
-                    {/* Social/Contact placeholder */}
-                    <View className="bg-card border border-border rounded-2xl p-4">
-                        <Text className="text-text-secondary text-xs font-medium uppercase mb-3">Contact & Social</Text>
-                        <View className="flex-row">
-                            <View className="w-10 h-10 bg-secondary-soft rounded-full items-center justify-center mr-2">
-                                <Text className="text-secondary font-bold">f</Text>
-                            </View>
-                            <View className="w-10 h-10 bg-info-soft rounded-full items-center justify-center mr-2">
-                                <Text className="text-info font-bold">@</Text>
-                            </View>
-                            <View className="w-10 h-10 bg-danger-soft rounded-full items-center justify-center">
-                                <Text className="text-danger font-bold">✉</Text>
-                            </View>
+                    {/* Members List - Only for joined clubs */}
+                    {isUserMember && (
+                        <View className="mb-5">
+                            <Text className="text-text font-bold text-lg mb-3">Members ({members.length})</Text>
+
+                            {loadingMembers ? (
+                                <ActivityIndicator color={COLORS.primary} />
+                            ) : members.length > 0 ? (
+                                <View className="bg-card border border-border rounded-2xl overflow-hidden">
+                                    {members.map((member, index) => {
+                                        const roleStyle = getRoleBadgeColor(member.role);
+                                        return (
+                                            <View
+                                                key={member.id}
+                                                className={`p-4 flex-row items-center ${index !== members.length - 1 ? 'border-b border-border' : ''}`}
+                                            >
+                                                <View className="w-10 h-10 bg-secondary-soft rounded-full items-center justify-center mr-3">
+                                                    <Text className="text-secondary font-bold">
+                                                        {member.user.fullName?.charAt(0) || '?'}
+                                                    </Text>
+                                                </View>
+                                                <View className="flex-1">
+                                                    <Text className="text-text font-medium">{member.user.fullName}</Text>
+                                                    <Text className="text-text-secondary text-xs">{member.user.email}</Text>
+                                                </View>
+                                                <View className={`px-2 py-1 rounded ${roleStyle.bg}`}>
+                                                    <Text className={`text-xs font-bold ${roleStyle.text}`}>{member.role}</Text>
+                                                </View>
+                                            </View>
+                                        );
+                                    })}
+                                </View>
+                            ) : (
+                                <View className="bg-card border border-border rounded-2xl p-6 items-center">
+                                    <Text className="text-text-secondary">No members found</Text>
+                                </View>
+                            )}
                         </View>
-                    </View>
+                    )}
                 </View>
             </ScrollView>
 
-            {/* Bottom CTA */}
-            <View className="absolute bottom-0 left-0 right-0 bg-card border-t border-border px-5 pt-4 pb-8">
-                {fee > 0 && (
-                    <View className="flex-row justify-between items-center mb-3">
-                        <Text className="text-text-secondary">Membership Fee</Text>
-                        <Text className="text-primary text-xl font-bold">{fee.toLocaleString()}₫</Text>
-                    </View>
-                )}
-                <TouchableOpacity
-                    className="w-full bg-primary py-4 rounded-2xl items-center"
-                    onPress={() => router.push({
-                        pathname: '/(student)/clubs/apply',
-                        params: { clubId: club.id, clubName: club.name, fee }
-                    })}
-                >
-                    <Text className="text-white font-bold text-base">
-                        {fee === 0 ? 'Join Club - Free' : 'Apply to Join'}
-                    </Text>
-                </TouchableOpacity>
-            </View>
+            {/* Bottom CTA - Only for non-members */}
+            {!isUserMember && (
+                <View className="absolute bottom-0 left-0 right-0 bg-card border-t border-border px-5 pt-4 pb-8">
+                    {fee > 0 && (
+                        <View className="flex-row justify-between items-center mb-3">
+                            <Text className="text-text-secondary">Membership Fee</Text>
+                            <Text className="text-primary text-xl font-bold">{fee.toLocaleString()}₫</Text>
+                        </View>
+                    )}
+                    <TouchableOpacity
+                        className="w-full bg-primary py-4 rounded-2xl items-center"
+                        onPress={() => router.push({
+                            pathname: '/(student)/clubs/apply',
+                            params: { clubId: club.id, clubName: club.name, fee }
+                        })}
+                    >
+                        <Text className="text-white font-bold text-base">
+                            {fee === 0 ? 'Join Club - Free' : 'Apply to Join'}
+                        </Text>
+                    </TouchableOpacity>
+                </View>
+            )}
         </View>
     );
 }

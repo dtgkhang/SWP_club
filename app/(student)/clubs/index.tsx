@@ -1,10 +1,11 @@
 import { useRouter } from 'expo-router';
-import { ChevronRight, Filter, Search, Sparkles, TrendingUp, Users } from 'lucide-react-native';
+import { ChevronRight, Search, Sparkles, Users } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Dimensions, Image, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../../../constants/theme';
 import { useToast } from '../../../contexts/ToastContext';
+import { authService } from '../../../services/auth.service';
 import { Club, clubService } from '../../../services/club.service';
 
 const { width } = Dimensions.get('window');
@@ -12,82 +13,80 @@ const { width } = Dimensions.get('window');
 export default function ClubList() {
     const router = useRouter();
     const { showError } = useToast();
-    const [clubs, setClubs] = useState<Club[]>([]);
+    const [activeTab, setActiveTab] = useState<'EXPLORE' | 'MY_CLUBS'>('EXPLORE');
+    const [allClubs, setAllClubs] = useState<Club[]>([]);
+    const [myClubIds, setMyClubIds] = useState<string[]>([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
     const [debouncedSearch, setDebouncedSearch] = useState('');
 
-    // Debounce search query
+    // Debounce search
     useEffect(() => {
-        const timer = setTimeout(() => {
-            setDebouncedSearch(search);
-        }, 500);
+        const timer = setTimeout(() => setDebouncedSearch(search), 500);
         return () => clearTimeout(timer);
     }, [search]);
 
-    // Reload clubs when search changes
+    useEffect(() => {
+        loadData();
+    }, []);
+
     useEffect(() => {
         loadClubs();
     }, [debouncedSearch]);
 
+    const loadData = async () => {
+        await Promise.all([loadClubs(), loadMyClubs()]);
+    };
+
+    const loadMyClubs = async () => {
+        try {
+            const { user } = await authService.getProfile();
+            const clubIds = (user?.memberships || [])
+                .filter((m: any) => m.status === 'ACTIVE')
+                .map((m: any) => m.clubId);
+            setMyClubIds(clubIds);
+        } catch (error) {
+            console.log('Error loading my clubs:', error);
+        }
+    };
+
     const loadClubs = async () => {
         try {
             setLoading(true);
-            const result = await clubService.getAllClubs(1, 20, debouncedSearch || undefined);
-            setClubs(result.clubs || []);
+            const result = await clubService.getAllClubs(1, 50, debouncedSearch || undefined);
+            setAllClubs(result.clubs || []);
         } catch (error: any) {
-            showError('Loading Failed', 'Could not load clubs. Please try again.');
+            showError('Loading Failed', 'Could not load clubs');
         } finally {
             setLoading(false);
         }
     };
 
+    // Filter clubs based on active tab
+    const exploreClubs = allClubs.filter(c => !myClubIds.includes(c.id));
+    const myClubs = allClubs.filter(c => myClubIds.includes(c.id));
+    const displayedClubs = activeTab === 'EXPLORE' ? exploreClubs : myClubs;
 
-    // Featured Club Card (Large)
-    const FeaturedClubCard = ({ club }: { club: Club }) => (
+    // Tab Component
+    const Tab = ({ label, value, count }: { label: string; value: 'EXPLORE' | 'MY_CLUBS'; count: number }) => (
         <TouchableOpacity
-            className="mr-4"
-            onPress={() => router.push(`/(student)/clubs/${club.slug || club.id}`)}
-            activeOpacity={0.9}
-            style={{ width: width * 0.7 }}
+            onPress={() => setActiveTab(value)}
+            className={`flex-1 py-3 items-center rounded-xl ${activeTab === value ? 'bg-primary' : 'bg-transparent'}`}
         >
-            <View className="rounded-3xl overflow-hidden bg-card border border-border">
-                <Image
-                    source={{ uri: club.logoUrl || 'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=400' }}
-                    className="w-full h-36"
-                    resizeMode="cover"
-                />
-                <View className="p-4">
-                    <Text className="text-text font-bold text-lg mb-1" numberOfLines={1}>{club.name}</Text>
-                    <Text className="text-text-secondary text-sm mb-3" numberOfLines={2}>
-                        {club.description || 'Join us to explore and grow together!'}
-                    </Text>
-                    <View className="flex-row items-center justify-between">
-                        <View className="flex-row items-center">
-                            <View className="bg-secondary-soft px-2.5 py-1 rounded-lg flex-row items-center">
-                                <Users size={12} color={COLORS.secondary} />
-                                <Text className="text-secondary text-xs font-bold ml-1">
-                                    {club._count?.memberships || 0}
-                                </Text>
-                            </View>
-                            <View className="bg-primary-soft px-2.5 py-1 rounded-lg flex-row items-center ml-2">
-                                <Sparkles size={12} color={COLORS.primary} />
-                                <Text className="text-primary text-xs font-bold ml-1">
-                                    {club._count?.events || 0} events
-                                </Text>
-                            </View>
-                        </View>
-                    </View>
-                </View>
-            </View>
+            <Text className={`font-bold ${activeTab === value ? 'text-white' : 'text-text-secondary'}`}>
+                {label} ({count})
+            </Text>
         </TouchableOpacity>
     );
 
-    // Compact Club Card
-    const ClubCard = ({ club }: { club: Club }) => (
+    // Club Card
+    const ClubCard = ({ club, isMember }: { club: Club; isMember: boolean }) => (
         <TouchableOpacity
             className="bg-card rounded-2xl mb-3 overflow-hidden border border-border"
-            onPress={() => router.push(`/(student)/clubs/${club.slug || club.id}`)}
+            onPress={() => router.push({
+                pathname: '/(student)/clubs/[id]' as any,
+                params: { id: club.slug || club.id, isMember: isMember ? 'true' : 'false' }
+            })}
             activeOpacity={0.7}
         >
             <View className="flex-row">
@@ -97,7 +96,14 @@ export default function ClubList() {
                     resizeMode="cover"
                 />
                 <View className="flex-1 p-3 justify-center">
-                    <Text className="text-text font-bold text-base mb-1" numberOfLines={1}>{club.name}</Text>
+                    <View className="flex-row items-center mb-1">
+                        <Text className="text-text font-bold text-base flex-1" numberOfLines={1}>{club.name}</Text>
+                        {isMember && (
+                            <View className="bg-success-soft px-2 py-0.5 rounded">
+                                <Text className="text-success text-xs font-bold">Member</Text>
+                            </View>
+                        )}
+                    </View>
                     <Text className="text-text-secondary text-xs mb-2" numberOfLines={1}>
                         {club.description || 'No description'}
                     </Text>
@@ -106,12 +112,15 @@ export default function ClubList() {
                         <Text className="text-secondary text-xs font-medium ml-1">
                             {club._count?.memberships || 0} members
                         </Text>
+                        <View className="w-1 h-1 bg-border rounded-full mx-2" />
+                        <Sparkles size={12} color={COLORS.primary} />
+                        <Text className="text-primary text-xs font-medium ml-1">
+                            {club._count?.events || 0} events
+                        </Text>
                     </View>
                 </View>
                 <View className="justify-center pr-3">
-                    <View className="w-8 h-8 bg-background rounded-full items-center justify-center">
-                        <ChevronRight size={16} color={COLORS.textSecondary} />
-                    </View>
+                    <ChevronRight size={18} color={COLORS.border} />
                 </View>
             </View>
         </TouchableOpacity>
@@ -119,92 +128,73 @@ export default function ClubList() {
 
     return (
         <SafeAreaView className="flex-1 bg-background" edges={['top']}>
+            {/* Header */}
+            <View className="px-5 pt-2 pb-4">
+                <Text className="text-text text-2xl font-bold mb-1">Clubs</Text>
+                <Text className="text-text-secondary text-sm">Discover and join student clubs</Text>
+            </View>
+
+            {/* Search Bar */}
+            <View className="px-5 mb-4">
+                <View className="flex-row items-center bg-card border border-border rounded-2xl px-4 h-12">
+                    <Search size={20} color={COLORS.textSecondary} />
+                    <TextInput
+                        placeholder="Search clubs..."
+                        className="flex-1 ml-3 text-text text-base"
+                        placeholderTextColor="#94A3B8"
+                        value={search}
+                        onChangeText={setSearch}
+                    />
+                </View>
+            </View>
+
+            {/* Tabs */}
+            <View className="mx-5 mb-4 p-1 bg-card border border-border rounded-2xl flex-row">
+                <Tab label="Explore" value="EXPLORE" count={exploreClubs.length} />
+                <Tab label="My Clubs" value="MY_CLUBS" count={myClubs.length} />
+            </View>
+
+            {/* Content */}
             <ScrollView
-                className="flex-1"
+                className="flex-1 px-5"
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={{ paddingBottom: 100 }}
             >
-                {/* Header */}
-                <View className="px-5 pt-2 pb-4">
-                    <View className="flex-row justify-between items-center mb-2">
-                        <View>
-                            <Text className="text-text text-2xl font-bold">Explore Clubs</Text>
-                            <Text className="text-text-secondary text-sm">Find your community</Text>
-                        </View>
-                        <TouchableOpacity className="w-10 h-10 bg-card border border-border rounded-xl items-center justify-center">
-                            <Filter size={18} color={COLORS.text} />
-                        </TouchableOpacity>
+                {loading ? (
+                    <View className="py-10">
+                        <ActivityIndicator size="large" color={COLORS.primary} />
                     </View>
-                </View>
-
-                {/* Search Bar */}
-                <View className="px-5 mb-5">
-                    <View className="flex-row items-center bg-card border border-border rounded-2xl px-4 h-14">
-                        <Search size={20} color={COLORS.textSecondary} />
-                        <TextInput
-                            placeholder="Search clubs..."
-                            className="flex-1 ml-3 text-text text-base"
-                            placeholderTextColor="#94A3B8"
-                            value={search}
-                            onChangeText={setSearch}
+                ) : displayedClubs.length > 0 ? (
+                    displayedClubs.map(club => (
+                        <ClubCard
+                            key={club.id}
+                            club={club}
+                            isMember={myClubIds.includes(club.id)}
                         />
-                    </View>
-                </View>
-
-                {/* Stats Banner */}
-                <View className="mx-5 mb-5 bg-secondary p-4 rounded-2xl flex-row items-center justify-between">
-                    <View className="flex-row items-center">
-                        <View className="w-10 h-10 bg-white/20 rounded-xl items-center justify-center mr-3">
-                            <TrendingUp size={20} color="#FFF" />
-                        </View>
-                        <View>
-                            <Text className="text-white/80 text-xs">Total</Text>
-                            <Text className="text-white font-bold text-lg">{clubs.length} Clubs</Text>
-                        </View>
-                    </View>
-                    <TouchableOpacity className="bg-white/20 px-4 py-2 rounded-xl">
-                        <Text className="text-white font-medium text-sm">View All</Text>
-                    </TouchableOpacity>
-                </View>
-
-                {/* Featured Clubs - Horizontal Scroll */}
-                {!loading && clubs.length > 0 && (
-                    <View className="mb-6">
-                        <View className="flex-row justify-between items-center px-5 mb-3">
-                            <Text className="text-text font-bold text-lg">🌟 Popular Clubs</Text>
-                        </View>
-                        <ScrollView
-                            horizontal
-                            showsHorizontalScrollIndicator={false}
-                            contentContainerStyle={{ paddingLeft: 20, paddingRight: 10 }}
-                        >
-                            {clubs.slice(0, 3).map((club: Club) => (
-                                <FeaturedClubCard key={club.id} club={club} />
-                            ))}
-                        </ScrollView>
+                    ))
+                ) : (
+                    <View className="items-center justify-center py-16">
+                        <Text className="text-6xl mb-4">
+                            {activeTab === 'EXPLORE' ? '🔍' : '📭'}
+                        </Text>
+                        <Text className="text-text font-bold text-lg">
+                            {activeTab === 'EXPLORE' ? 'No clubs to explore' : 'No clubs joined yet'}
+                        </Text>
+                        <Text className="text-text-secondary text-sm mt-1 text-center px-8">
+                            {activeTab === 'EXPLORE'
+                                ? 'You have joined all available clubs!'
+                                : 'Explore clubs and join to see them here'}
+                        </Text>
+                        {activeTab === 'MY_CLUBS' && (
+                            <TouchableOpacity
+                                className="mt-4 bg-primary px-6 py-3 rounded-xl"
+                                onPress={() => setActiveTab('EXPLORE')}
+                            >
+                                <Text className="text-white font-bold">Explore Clubs</Text>
+                            </TouchableOpacity>
+                        )}
                     </View>
                 )}
-
-                {/* All Clubs List */}
-                <View className="px-5">
-                    <Text className="text-text font-bold text-lg mb-4">All Clubs</Text>
-
-                    {loading ? (
-                        <View className="py-10">
-                            <ActivityIndicator size="large" color={COLORS.primary} />
-                        </View>
-                    ) : clubs.length > 0 ? (
-                        clubs.map((club: Club) => (
-                            <ClubCard key={club.id} club={club} />
-                        ))
-                    ) : (
-                        <View className="items-center justify-center py-16">
-                            <Text className="text-6xl mb-4">🔍</Text>
-                            <Text className="text-text font-bold text-lg">No clubs found</Text>
-                            <Text className="text-text-secondary text-sm mt-1">Try a different search term</Text>
-                        </View>
-                    )}
-                </View>
             </ScrollView>
         </SafeAreaView>
     );

@@ -73,7 +73,7 @@ export default function WalletScreen() {
                     renderItem={renderItem}
                     keyExtractor={item => item.id}
                     showsVerticalScrollIndicator={false}
-                    contentContainerStyle={{ paddingBottom: 20 }}
+                    contentContainerStyle={{ paddingBottom: 100 }}
                     ListEmptyComponent={
                         <View className="items-center justify-center py-20">
                             <View className="bg-border/30 w-20 h-20 rounded-full items-center justify-center mb-4">

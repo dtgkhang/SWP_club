@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
-import { Animated, Text, View, TouchableOpacity } from 'react-native';
+import { Animated, Text, View, TouchableOpacity, Platform } from 'react-native';
 import { CheckCircle, XCircle, AlertTriangle, Info, X } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from '../constants/theme';
 
 type ToastType = 'success' | 'error' | 'warning' | 'info';
@@ -31,30 +32,29 @@ export function useToast() {
 }
 
 const TOAST_CONFIG = {
-    success: { bg: 'bg-success-soft', border: 'border-success', icon: CheckCircle, color: COLORS.success },
-    error: { bg: 'bg-danger-soft', border: 'border-danger', icon: XCircle, color: COLORS.error },
-    warning: { bg: 'bg-warning-soft', border: 'border-warning', icon: AlertTriangle, color: COLORS.warning },
-    info: { bg: 'bg-info-soft', border: 'border-info', icon: Info, color: COLORS.info },
+    success: { bg: '#DCFCE7', border: '#22C55E', icon: CheckCircle, color: COLORS.success },
+    error: { bg: '#FEE2E2', border: '#EF4444', icon: XCircle, color: COLORS.error },
+    warning: { bg: '#FEF3C7', border: '#F59E0B', icon: AlertTriangle, color: COLORS.warning },
+    info: { bg: '#E0F2FE', border: '#38BDF8', icon: Info, color: COLORS.info },
 };
 
 function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }) {
     const config = TOAST_CONFIG[toast.type];
     const Icon = config.icon;
     const [opacity] = useState(new Animated.Value(0));
+    const [translateY] = useState(new Animated.Value(-20));
 
     React.useEffect(() => {
-        Animated.timing(opacity, {
-            toValue: 1,
-            duration: 300,
-            useNativeDriver: true,
-        }).start();
+        Animated.parallel([
+            Animated.timing(opacity, { toValue: 1, duration: 300, useNativeDriver: true }),
+            Animated.timing(translateY, { toValue: 0, duration: 300, useNativeDriver: true }),
+        ]).start();
 
         const timer = setTimeout(() => {
-            Animated.timing(opacity, {
-                toValue: 0,
-                duration: 300,
-                useNativeDriver: true,
-            }).start(() => onDismiss());
+            Animated.parallel([
+                Animated.timing(opacity, { toValue: 0, duration: 300, useNativeDriver: true }),
+                Animated.timing(translateY, { toValue: -20, duration: 300, useNativeDriver: true }),
+            ]).start(() => onDismiss());
         }, 3500);
 
         return () => clearTimeout(timer);
@@ -62,18 +62,57 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
 
     return (
         <Animated.View
-            style={{ opacity }}
-            className={`mx-4 mb-2 p-4 rounded-xl border ${config.bg} ${config.border} flex-row items-center shadow-lg`}
+            style={[
+                {
+                    opacity,
+                    transform: [{ translateY }],
+                    marginHorizontal: 16,
+                    marginBottom: 8,
+                    padding: 16,
+                    borderRadius: 16,
+                    backgroundColor: config.bg,
+                    borderWidth: 1,
+                    borderColor: config.border,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 4 },
+                    shadowOpacity: 0.1,
+                    shadowRadius: 8,
+                    elevation: 5,
+                }
+            ]}
         >
             <Icon size={24} color={config.color} />
-            <View className="flex-1 ml-3">
-                <Text className="text-text font-bold">{toast.title}</Text>
-                {toast.message && <Text className="text-text-secondary text-sm">{toast.message}</Text>}
+            <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={{ fontWeight: 'bold', color: COLORS.text }}>{toast.title}</Text>
+                {toast.message && <Text style={{ color: COLORS.textSecondary, fontSize: 13 }}>{toast.message}</Text>}
             </View>
-            <TouchableOpacity onPress={onDismiss} className="p-1">
+            <TouchableOpacity onPress={onDismiss} style={{ padding: 4 }}>
                 <X size={18} color={COLORS.textSecondary} />
             </TouchableOpacity>
         </Animated.View>
+    );
+}
+
+function ToastContainer({ toasts, onDismiss }: { toasts: Toast[]; onDismiss: (id: string) => void }) {
+    const insets = useSafeAreaInsets();
+
+    return (
+        <View
+            style={{
+                position: 'absolute',
+                top: insets.top + (Platform.OS === 'ios' ? 10 : 20),
+                left: 0,
+                right: 0,
+                zIndex: 9999,
+            }}
+            pointerEvents="box-none"
+        >
+            {toasts.map(toast => (
+                <ToastItem key={toast.id} toast={toast} onDismiss={() => onDismiss(toast.id)} />
+            ))}
+        </View>
     );
 }
 
@@ -97,11 +136,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     return (
         <ToastContext.Provider value={{ showToast, showSuccess, showError, showWarning, showInfo }}>
             {children}
-            <View className="absolute top-12 left-0 right-0 z-50">
-                {toasts.map(toast => (
-                    <ToastItem key={toast.id} toast={toast} onDismiss={() => dismissToast(toast.id)} />
-                ))}
-            </View>
+            <ToastContainer toasts={toasts} onDismiss={dismissToast} />
         </ToastContext.Provider>
     );
 }
