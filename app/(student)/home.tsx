@@ -2,9 +2,10 @@
 import { useRouter } from 'expo-router';
 import { Bell, Calendar, ChevronRight, Clock, MapPin, Search, Sparkles, Users } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Dimensions, FlatList, Image, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Dimensions, Image, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../../constants/theme';
+import { useToast } from '../../contexts/ToastContext';
 import { authService } from '../../services/auth.service';
 import { Event, eventService } from '../../services/event.service';
 
@@ -13,6 +14,7 @@ const CARD_WIDTH = width - 40;
 
 export default function StudentHome() {
     const router = useRouter();
+    const { showError } = useToast();
     const [filter, setFilter] = useState('ALL');
     const [user, setUser] = useState<any>(null);
     const [events, setEvents] = useState<Event[]>([]);
@@ -35,28 +37,48 @@ export default function StudentHome() {
     // Reload events when filter or search changes
     useEffect(() => {
         loadEvents();
-    }, [filter, debouncedSearch]);
+    }, [filter, debouncedSearch, user]);
 
     const loadProfile = async () => {
         try {
             const { user: profile } = await authService.getProfile();
             setUser(profile);
-        } catch (error) {
-            console.log('Error fetching profile:', error);
+        } catch (error: any) {
+            showError('Profile Error', 'Could not load your profile');
         }
+    };
+
+    // Get user's club IDs from memberships
+    const getUserClubIds = (): string[] => {
+        if (!user?.memberships) return [];
+        return user.memberships
+            .filter((m: any) => m.status === 'ACTIVE')
+            .map((m: any) => m.clubId);
     };
 
     const loadEvents = async () => {
         try {
             setLoading(true);
-            const typeFilter = filter === 'ALL' ? undefined : filter;
+
+            // For MY_CLUBS, fetch all events and filter client-side
+            // For PUBLIC/ALL, use BE filter
+            const typeFilter = filter === 'ALL' || filter === 'MY_CLUBS' ? undefined : filter;
+
             const data = await eventService.getAllEvents({
                 type: typeFilter,
                 search: debouncedSearch || undefined
             });
-            setEvents(data);
-        } catch (error) {
-            console.error('Error fetching events:', error);
+
+            // Client-side filter for MY_CLUBS
+            if (filter === 'MY_CLUBS') {
+                const userClubIds = getUserClubIds();
+                const filtered = data.filter(e => userClubIds.includes(e.clubId));
+                setEvents(filtered);
+            } else {
+                setEvents(data);
+            }
+        } catch (error: any) {
+            showError('Loading Failed', 'Could not load events. Please try again.');
         } finally {
             setLoading(false);
         }
@@ -252,7 +274,7 @@ export default function StudentHome() {
                 >
                     <FilterChip label="All" value="ALL" icon={Sparkles} />
                     <FilterChip label="Public" value="PUBLIC" />
-                    <FilterChip label="My Clubs" value="INTERNAL" />
+                    <FilterChip label="My Clubs" value="MY_CLUBS" />
                 </ScrollView>
 
                 {/* Events List */}

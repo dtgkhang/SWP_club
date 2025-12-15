@@ -1,21 +1,23 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowLeft, CheckCircle, Send } from 'lucide-react-native';
 import { useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../../../constants/theme';
+import { useToast } from '../../../contexts/ToastContext';
 import { clubService } from '../../../services/club.service';
 
 export default function ClubApplication() {
     const { clubId, clubName, fee } = useLocalSearchParams();
     const router = useRouter();
+    const { showSuccess, showError, showWarning } = useToast();
     const [reason, setReason] = useState('');
     const [submitted, setSubmitted] = useState(false);
     const [loading, setLoading] = useState(false);
 
     const handleSubmit = async () => {
         if (!reason.trim()) {
-            Alert.alert('Required', 'Please tell us why you want to join');
+            showWarning('Required', 'Please tell us why you want to join');
             return;
         }
 
@@ -23,8 +25,9 @@ export default function ClubApplication() {
             setLoading(true);
             await clubService.applyToClub(clubId as string, reason);
             setSubmitted(true);
+            showSuccess('Application Sent!', 'The club leader will review your application');
         } catch (error: any) {
-            Alert.alert('Error', error.message || 'Failed to submit application');
+            showError('Application Failed', error.message || 'Please try again');
         } finally {
             setLoading(false);
         }

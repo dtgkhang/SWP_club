@@ -1,12 +1,14 @@
 import { useRouter } from 'expo-router';
 import { Eye, EyeOff, GraduationCap, Lock, Mail } from 'lucide-react-native';
 import { useState } from 'react';
-import { ActivityIndicator, Image, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useToast } from '../contexts/ToastContext';
 import { authService } from '../services/auth.service';
 
 export default function LoginScreen() {
     const router = useRouter();
+    const { showSuccess, showError, showWarning } = useToast();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
@@ -14,17 +16,17 @@ export default function LoginScreen() {
 
     const handleLogin = async () => {
         if (!email || !password) {
-            alert('Please enter email and password');
+            showWarning('Missing Fields', 'Please enter email and password');
             return;
         }
 
         try {
             setLoading(true);
-            const response = await authService.login(email, password);
-            console.log('Login success:', response);
+            await authService.login(email, password);
+            showSuccess('Welcome!', 'Login successful');
             router.replace('/(student)/home');
         } catch (error: any) {
-            alert(error.message || 'Login failed');
+            showError('Login Failed', error.message || 'Invalid email or password');
         } finally {
             setLoading(false);
         }

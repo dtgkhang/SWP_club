@@ -61,6 +61,11 @@ export const clubService = {
         return response.data || null;
     },
 
+    async getClubMembers(clubId: string): Promise<any[]> {
+        const response = await api<{ success: boolean; data: any[] }>(`/clubs/${clubId}/members`);
+        return response.data || [];
+    },
+
     async applyToClub(clubId: string, applicationData?: string): Promise<{ success: boolean; message?: string }> {
         return api<{ success: boolean; message?: string }>(`/clubs/${clubId}/apply`, {
             method: 'POST',

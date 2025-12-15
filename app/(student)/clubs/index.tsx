@@ -1,15 +1,17 @@
 import { useRouter } from 'expo-router';
 import { ChevronRight, Filter, Search, Sparkles, TrendingUp, Users } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Dimensions, FlatList, Image, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Dimensions, Image, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../../../constants/theme';
+import { useToast } from '../../../contexts/ToastContext';
 import { Club, clubService } from '../../../services/club.service';
 
 const { width } = Dimensions.get('window');
 
 export default function ClubList() {
     const router = useRouter();
+    const { showError } = useToast();
     const [clubs, setClubs] = useState<Club[]>([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
@@ -33,8 +35,8 @@ export default function ClubList() {
             setLoading(true);
             const result = await clubService.getAllClubs(1, 20, debouncedSearch || undefined);
             setClubs(result.clubs || []);
-        } catch (error) {
-            console.error('API Error:', error);
+        } catch (error: any) {
+            showError('Loading Failed', 'Could not load clubs. Please try again.');
         } finally {
             setLoading(false);
         }

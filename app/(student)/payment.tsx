@@ -1,14 +1,16 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowLeft, CheckCircle, ExternalLink, XCircle } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Linking, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Linking, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../../constants/theme';
+import { useToast } from '../../contexts/ToastContext';
 import { eventService } from '../../services/event.service';
 
 export default function PaymentScreen() {
     const { eventId, eventTitle, amount, isFree } = useLocalSearchParams();
     const router = useRouter();
+    const { showSuccess, showError, showInfo } = useToast();
     const [status, setStatus] = useState<'PENDING' | 'PROCESSING' | 'SUCCESS' | 'ERROR'>('PENDING');
     const [tickets, setTickets] = useState<any[]>([]);
     const [errorMessage, setErrorMessage] = useState('');
@@ -27,9 +29,11 @@ export default function PaymentScreen() {
                 setTickets(result.tickets);
             }
             setStatus('SUCCESS');
+            showSuccess('Registration Complete!', 'Your ticket has been added to your wallet');
         } catch (error: any) {
             setErrorMessage(error.message || 'Registration failed');
             setStatus('ERROR');
+            showError('Registration Failed', error.message || 'Please try again');
         }
     };
 
@@ -39,19 +43,18 @@ export default function PaymentScreen() {
             const result = await eventService.registerEvent(eventId as string, 1);
 
             if (result.type === 'PAID' && result.paymentLink) {
+                showInfo('Payment Link', 'Opening payment page in browser...');
                 await Linking.openURL(result.paymentLink);
-                Alert.alert(
-                    'Payment Link Opened',
-                    'Complete your payment in the browser. Your ticket will appear in your wallet.',
-                    [{ text: 'OK', onPress: () => router.replace('/(student)/wallet') }]
-                );
+                router.replace('/(student)/wallet');
             } else if (result.tickets) {
                 setTickets(result.tickets);
                 setStatus('SUCCESS');
+                showSuccess('Registration Complete!', 'Your ticket has been added');
             }
         } catch (error: any) {
             setErrorMessage(error.message || 'Registration failed');
             setStatus('ERROR');
+            showError('Payment Failed', error.message || 'Please try again');
         }
     };
 
