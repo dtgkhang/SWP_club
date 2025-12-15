@@ -92,5 +92,13 @@ export const eventService = {
     async getMyTickets(): Promise<any[]> {
         const response = await api<{ success: boolean; data: any[] }>('/tickets/my-tickets');
         return response.data || [];
+    },
+
+    async checkIn(qrCode: string): Promise<any> {
+        const response = await api<{ success: boolean; message: string; data: any }>('/checkin/qr', {
+            method: 'POST',
+            body: JSON.stringify({ qrCode }),
+        });
+        return response;
     }
 };

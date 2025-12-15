@@ -1,4 +1,4 @@
-import { Tabs } from 'expo-router';
+import { Tabs, useRouter } from 'expo-router';
 import { Home, ScanLine, User, Users, Wallet } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { Platform, View } from 'react-native';
@@ -8,21 +8,29 @@ import { authService } from '../../services/auth.service';
 const STAFF_ROLES = ['STAFF', 'LEADER', 'TREASURER', 'ADMIN'];
 
 export default function StudentLayout() {
+    const router = useRouter();
     const [hasStaffRole, setHasStaffRole] = useState(false);
 
     useEffect(() => {
-        checkStaffRole();
+        checkAuthAndRole();
     }, []);
 
-    const checkStaffRole = async () => {
+    const checkAuthAndRole = async () => {
         try {
+            const isAuthenticated = await authService.checkAuth();
+            if (!isAuthenticated) {
+                router.replace('/');
+                return;
+            }
+
             const { user } = await authService.getProfile();
             const isStaff = user?.memberships?.some(m =>
                 STAFF_ROLES.includes(m.role) && m.status === 'ACTIVE'
             );
             setHasStaffRole(!!isStaff);
         } catch (error) {
-            setHasStaffRole(false);
+            console.log('Auth check failed:', error);
+            router.replace('/');
         }
     };
 

@@ -52,7 +52,8 @@ export default function ClubDetail() {
 
             // Load members if user is a member
             if (isMember) {
-                loadMembers(clubId);
+                // Feature removed from BE
+                // loadMembers(clubId);
             }
         } catch (error) {
             setIsUserMember(false);
@@ -268,45 +269,7 @@ export default function ClubDetail() {
                         </View>
                     )}
 
-                    {/* Members List - Only for joined clubs */}
-                    {isUserMember && (
-                        <View className="mb-5">
-                            <Text className="text-text font-bold text-lg mb-3">Members ({members.length})</Text>
 
-                            {loadingMembers ? (
-                                <ActivityIndicator color={COLORS.primary} />
-                            ) : members.length > 0 ? (
-                                <View className="bg-card border border-border rounded-2xl overflow-hidden">
-                                    {members.map((member, index) => {
-                                        const roleStyle = getRoleBadgeColor(member.role);
-                                        return (
-                                            <View
-                                                key={member.id}
-                                                className={`p-4 flex-row items-center ${index !== members.length - 1 ? 'border-b border-border' : ''}`}
-                                            >
-                                                <View className="w-10 h-10 bg-secondary-soft rounded-full items-center justify-center mr-3">
-                                                    <Text className="text-secondary font-bold">
-                                                        {member.user.fullName?.charAt(0) || '?'}
-                                                    </Text>
-                                                </View>
-                                                <View className="flex-1">
-                                                    <Text className="text-text font-medium">{member.user.fullName}</Text>
-                                                    <Text className="text-text-secondary text-xs">{member.user.email}</Text>
-                                                </View>
-                                                <View className={`px-2 py-1 rounded ${roleStyle.bg}`}>
-                                                    <Text className={`text-xs font-bold ${roleStyle.text}`}>{member.role}</Text>
-                                                </View>
-                                            </View>
-                                        );
-                                    })}
-                                </View>
-                            ) : (
-                                <View className="bg-card border border-border rounded-2xl p-6 items-center">
-                                    <Text className="text-text-secondary">No members found</Text>
-                                </View>
-                            )}
-                        </View>
-                    )}
                 </View>
             </ScrollView>
 

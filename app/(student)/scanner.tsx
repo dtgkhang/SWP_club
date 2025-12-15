@@ -1,17 +1,29 @@
 import { Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
+import { CheckCircle, XCircle } from 'lucide-react-native';
 import React, { useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../../constants/theme';
 import { useToast } from '../../contexts/ToastContext';
 
+import { eventService } from '../../services/event.service';
+
+interface ScanResult {
+    status: 'success' | 'error';
+    title: string;
+    message: string;
+    data?: any;
+}
+
 export default function ScannerScreen() {
     const router = useRouter();
     const { showSuccess, showError } = useToast();
     const [permission, requestPermission] = useCameraPermissions();
     const [scanned, setScanned] = useState(false);
+    const [result, setResult] = useState<ScanResult | null>(null);
 
     if (!permission) {
         // Camera permissions are still loading.
@@ -32,15 +44,45 @@ export default function ScannerScreen() {
         );
     }
 
-    const handleBarCodeScanned = ({ type, data }: { type: string; data: string }) => {
+    const handleBarCodeScanned = async ({ type, data }: { type: string; data: string }) => {
+        if (scanned) return;
         setScanned(true);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         console.log(`Bar code with type ${type} and data ${data} has been scanned!`);
 
-        // Simulation of verification since BE endpoint is missing
-        showSuccess('Scanned Successfully', `Code: ${data} `);
+        try {
+            // Call API to verify ticket
+            const response = await eventService.checkIn(data);
 
-        // TODO: Call API to verify ticket here when available
-        // eventService.verifyTicket(data)...
+            if (response.success) {
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                setResult({
+                    status: 'success',
+                    title: 'Check-in Successful',
+                    message: response.message || 'Ticket is valid.',
+                    data: response.data
+                });
+            } else {
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+                setResult({
+                    status: 'error',
+                    title: 'Check-in Failed',
+                    message: response.message || 'Invalid ticket.',
+                });
+            }
+        } catch (error: any) {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+            setResult({
+                status: 'error',
+                title: 'Check-in Error',
+                message: error.message || 'Could not verify ticket.',
+            });
+        }
+    };
+
+    const handleScanNext = () => {
+        setResult(null);
+        setScanned(false);
     };
 
     return (
@@ -65,21 +107,51 @@ export default function ScannerScreen() {
                     <View style={{ width: 40 }} />
                 </View>
 
-                <View style={styles.scanAreaContainer}>
-                    <View style={styles.scanArea}>
-                        <View style={[styles.corner, styles.topLeft]} />
-                        <View style={[styles.corner, styles.topRight]} />
-                        <View style={[styles.corner, styles.bottomLeft]} />
-                        <View style={[styles.corner, styles.bottomRight]} />
+                {!result && (
+                    <View style={styles.scanAreaContainer}>
+                        <View style={styles.scanArea}>
+                            <View style={[styles.corner, styles.topLeft]} />
+                            <View style={[styles.corner, styles.topRight]} />
+                            <View style={[styles.corner, styles.bottomLeft]} />
+                            <View style={[styles.corner, styles.bottomRight]} />
+                        </View>
+                        <Text style={styles.hintText}>Align QR code within the frame</Text>
                     </View>
-                    <Text style={styles.hintText}>Align QR code within the frame</Text>
-                </View>
+                )}
 
-                {scanned && (
-                    <View style={styles.footer}>
-                        <TouchableOpacity style={styles.rescanButton} onPress={() => setScanned(false)}>
-                            <Text style={styles.rescanText}>Tap to Scan Again</Text>
-                        </TouchableOpacity>
+                {result && (
+                    <View style={styles.resultContainer}>
+                        <View style={[styles.resultCard, result.status === 'success' ? styles.successCard : styles.errorCard]}>
+                            {result.status === 'success' ? (
+                                <CheckCircle size={64} color="#22c55e" />
+                            ) : (
+                                <XCircle size={64} color="#ef4444" />
+                            )}
+                            <Text style={styles.resultTitle}>{result.title}</Text>
+                            <Text style={styles.resultMessage}>{result.message}</Text>
+
+                            {result.data?.user && (
+                                <View style={styles.detailRow}>
+                                    <View style={styles.detailItem}>
+                                        <Text style={styles.detailLabel}>Attendee</Text>
+                                        <Text style={styles.detailValue}>{result.data.user.fullName}</Text>
+                                    </View>
+                                </View>
+                            )}
+
+                            {result.data?.event && (
+                                <View style={styles.detailRow}>
+                                    <View style={styles.detailItem}>
+                                        <Text style={styles.detailLabel}>Event</Text>
+                                        <Text style={styles.detailValue}>{result.data.event.title}</Text>
+                                    </View>
+                                </View>
+                            )}
+
+                            <TouchableOpacity style={styles.nextButton} onPress={handleScanNext}>
+                                <Text style={styles.nextButtonText}>Scan Next</Text>
+                            </TouchableOpacity>
+                        </View>
                     </View>
                 )}
             </SafeAreaView>
@@ -206,6 +278,80 @@ const styles = StyleSheet.create({
         borderRadius: 30,
     },
     rescanText: {
+        color: 'white',
+        fontWeight: 'bold',
+        fontSize: 16,
+    },
+    resultContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        padding: 20,
+    },
+    resultCard: {
+        backgroundColor: 'white',
+        borderRadius: 20,
+        padding: 30,
+        alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 3.84,
+        elevation: 5,
+    },
+    successCard: {
+        borderTopWidth: 5,
+        borderTopColor: '#22c55e',
+    },
+    errorCard: {
+        borderTopWidth: 5,
+        borderTopColor: '#ef4444',
+    },
+    resultTitle: {
+        fontSize: 22,
+        fontWeight: 'bold',
+        marginTop: 20,
+        marginBottom: 10,
+        color: COLORS.text,
+        textAlign: 'center',
+    },
+    resultMessage: {
+        fontSize: 16,
+        color: COLORS.textSecondary,
+        textAlign: 'center',
+        marginBottom: 20,
+    },
+    detailRow: {
+        width: '100%',
+        marginBottom: 15,
+        borderBottomWidth: 1,
+        borderBottomColor: '#f1f5f9',
+        paddingBottom: 10,
+    },
+    detailItem: {
+        alignItems: 'center',
+    },
+    detailLabel: {
+        fontSize: 12,
+        color: COLORS.textSecondary,
+        textTransform: 'uppercase',
+        fontWeight: '600',
+        marginBottom: 4,
+    },
+    detailValue: {
+        fontSize: 18,
+        color: COLORS.text,
+        fontWeight: 'bold',
+        textAlign: 'center',
+    },
+    nextButton: {
+        backgroundColor: COLORS.primary,
+        paddingHorizontal: 40,
+        paddingVertical: 15,
+        borderRadius: 12,
+        width: '100%',
+        alignItems: 'center',
+    },
+    nextButtonText: {
         color: 'white',
         fontWeight: 'bold',
         fontSize: 16,

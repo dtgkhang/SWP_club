@@ -1,7 +1,7 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowLeft, CheckCircle, Send } from 'lucide-react-native';
 import { useState } from 'react';
-import { ActivityIndicator, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../../../constants/theme';
 import { useToast } from '../../../contexts/ToastContext';
@@ -73,49 +73,55 @@ export default function ClubApplication() {
                 </View>
             </View>
 
-            <ScrollView className="flex-1 p-5" showsVerticalScrollIndicator={false}>
-                {/* Info Card */}
-                <View className="bg-secondary-soft border border-secondary/20 rounded-xl p-4 mb-6">
-                    <Text className="text-secondary font-medium text-sm">
-                        📝 The club leader will review your application. You'll be notified once it's approved.
-                    </Text>
-                </View>
+            <KeyboardAvoidingView
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                style={{ flex: 1 }}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 10 : 0}
+            >
+                <ScrollView className="flex-1 p-5" showsVerticalScrollIndicator={false}>
+                    {/* Info Card */}
+                    <View className="bg-secondary-soft border border-secondary/20 rounded-xl p-4 mb-6">
+                        <Text className="text-secondary font-medium text-sm">
+                            📝 The club leader will review your application. You'll be notified once it's approved.
+                        </Text>
+                    </View>
 
-                {/* Form */}
-                <View className="bg-card border border-border rounded-xl p-5">
-                    <Text className="text-text font-bold text-base mb-4">Why do you want to join?</Text>
+                    {/* Form */}
+                    <View className="bg-card border border-border rounded-xl p-5">
+                        <Text className="text-text font-bold text-base mb-4">Why do you want to join?</Text>
 
-                    <TextInput
-                        className="bg-background border border-border rounded-xl p-4 text-text min-h-[150px]"
-                        placeholder="Share your interests, skills, and what you hope to contribute..."
-                        placeholderTextColor="#94A3B8"
-                        multiline
-                        textAlignVertical="top"
-                        value={reason}
-                        onChangeText={setReason}
-                    />
+                        <TextInput
+                            className="bg-background border border-border rounded-xl p-4 text-text min-h-[150px]"
+                            placeholder="Share your interests, skills, and what you hope to contribute..."
+                            placeholderTextColor="#94A3B8"
+                            multiline
+                            textAlignVertical="top"
+                            value={reason}
+                            onChangeText={setReason}
+                        />
 
-                    <Text className="text-text-secondary text-xs mt-2 mb-6">
-                        Write at least a few sentences to help the club leader understand your motivation.
-                    </Text>
+                        <Text className="text-text-secondary text-xs mt-2 mb-6">
+                            Write at least a few sentences to help the club leader understand your motivation.
+                        </Text>
 
-                    <TouchableOpacity
-                        className="w-full bg-primary py-4 rounded-xl items-center flex-row justify-center"
-                        onPress={handleSubmit}
-                        disabled={loading}
-                        style={{ opacity: loading ? 0.7 : 1 }}
-                    >
-                        {loading ? (
-                            <ActivityIndicator color="#FFF" />
-                        ) : (
-                            <>
-                                <Send size={20} color="#FFF" />
-                                <Text className="text-white font-bold ml-2">Submit Application</Text>
-                            </>
-                        )}
-                    </TouchableOpacity>
-                </View>
-            </ScrollView>
+                        <TouchableOpacity
+                            className="w-full bg-primary py-4 rounded-xl items-center flex-row justify-center"
+                            onPress={handleSubmit}
+                            disabled={loading}
+                            style={{ opacity: loading ? 0.7 : 1 }}
+                        >
+                            {loading ? (
+                                <ActivityIndicator color="#FFF" />
+                            ) : (
+                                <>
+                                    <Send size={20} color="#FFF" />
+                                    <Text className="text-white font-bold ml-2">Submit Application</Text>
+                                </>
+                            )}
+                        </TouchableOpacity>
+                    </View>
+                </ScrollView>
+            </KeyboardAvoidingView>
         </SafeAreaView>
     );
 }

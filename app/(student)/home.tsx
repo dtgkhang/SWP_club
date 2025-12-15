@@ -1,8 +1,9 @@
 
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { Bell, Calendar, ChevronRight, Clock, MapPin, Search, Sparkles, Users } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Dimensions, Image, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Dimensions, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../../constants/theme';
 import { useToast } from '../../contexts/ToastContext';
@@ -94,8 +95,9 @@ export default function StudentHome() {
             <View className="rounded-3xl overflow-hidden" style={{ width: CARD_WIDTH }}>
                 <Image
                     source={{ uri: event.club?.logoUrl || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=600' }}
-                    className="w-full h-52"
-                    resizeMode="cover"
+                    style={{ width: '100%', height: 208 }}
+                    contentFit="cover"
+                    transition={500}
                 />
                 <View className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
 
@@ -138,8 +140,9 @@ export default function StudentHome() {
         >
             <Image
                 source={{ uri: event.club?.logoUrl || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=300' }}
-                className="w-28 h-full"
-                resizeMode="cover"
+                style={{ width: 112, height: '100%' }}
+                contentFit="cover"
+                transition={500}
             />
             <View className="flex-1 p-4 justify-between">
                 <View>
@@ -188,121 +191,126 @@ export default function StudentHome() {
 
     return (
         <SafeAreaView className="flex-1 bg-background" edges={['top']}>
-            <ScrollView
-                className="flex-1"
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={{ paddingBottom: 100 }}
+            <KeyboardAvoidingView
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                style={{ flex: 1 }}
             >
-                {/* Header */}
-                <View className="px-5 pt-2 pb-4">
-                    <View className="flex-row justify-between items-center mb-5">
-                        <View className="flex-1">
-                            <Text className="text-text-secondary text-sm">Welcome back 👋</Text>
-                            <Text className="text-text text-2xl font-bold">{user?.fullName || 'Student'}</Text>
-                        </View>
-                        <TouchableOpacity className="w-11 h-11 bg-card border border-border rounded-xl items-center justify-center mr-2">
-                            <Bell size={20} color={COLORS.text} />
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            className="w-11 h-11 bg-primary rounded-xl items-center justify-center"
-                            onPress={() => router.push('/(student)/profile')}
-                        >
-                            <Text className="text-white font-bold text-base">
-                                {(user?.fullName || 'U').charAt(0).toUpperCase()}
-                            </Text>
-                        </TouchableOpacity>
-                    </View>
-
-                    {/* Search Bar */}
-                    <View className="flex-row items-center bg-card border border-border rounded-2xl px-4 h-14">
-                        <Search size={20} color={COLORS.textSecondary} />
-                        <TextInput
-                            placeholder="Search events, clubs..."
-                            className="flex-1 ml-3 text-text text-base"
-                            placeholderTextColor="#94A3B8"
-                            value={searchQuery}
-                            onChangeText={setSearchQuery}
-                        />
-                    </View>
-                </View>
-
-                {/* Quick Stats */}
-                <View className="flex-row px-5 mb-5">
-                    <TouchableOpacity
-                        className="flex-1 bg-secondary p-4 rounded-2xl mr-3"
-                        onPress={() => router.push('/(student)/clubs')}
-                    >
-                        <View className="flex-row items-center justify-between">
-                            <View>
-                                <Text className="text-white/80 text-xs font-medium">Explore</Text>
-                                <Text className="text-white text-xl font-bold">Clubs</Text>
-                            </View>
-                            <View className="w-10 h-10 bg-white/20 rounded-xl items-center justify-center">
-                                <Users size={20} color="#FFF" />
-                            </View>
-                        </View>
-                    </TouchableOpacity>
-                    <TouchableOpacity className="flex-1 bg-primary p-4 rounded-2xl">
-                        <View className="flex-row items-center justify-between">
-                            <View>
-                                <Text className="text-white/80 text-xs font-medium">Active</Text>
-                                <Text className="text-white text-xl font-bold">{events.length} Events</Text>
-                            </View>
-                            <View className="w-10 h-10 bg-white/20 rounded-xl items-center justify-center">
-                                <Sparkles size={20} color="#FFF" />
-                            </View>
-                        </View>
-                    </TouchableOpacity>
-                </View>
-
-                {/* Featured Section */}
-                {events.length > 0 && (
-                    <View className="px-5 mb-2">
-                        <View className="flex-row justify-between items-center mb-4">
-                            <Text className="text-text text-lg font-bold">🔥 Featured Event</Text>
-                        </View>
-                        <FeaturedEventCard event={events[0]} />
-                    </View>
-                )}
-
-                {/* Filter Chips */}
                 <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    className="mb-4"
-                    contentContainerStyle={{ paddingHorizontal: 20 }}
+                    className="flex-1"
+                    showsVerticalScrollIndicator={false}
+                    contentContainerStyle={{ paddingBottom: 100 }}
                 >
-                    <FilterChip label="All" value="ALL" icon={Sparkles} />
-                    <FilterChip label="Public" value="PUBLIC" />
-                    <FilterChip label="My Clubs" value="MY_CLUBS" />
-                </ScrollView>
+                    {/* Header */}
+                    <View className="px-5 pt-2 pb-4">
+                        <View className="flex-row justify-between items-center mb-5">
+                            <View className="flex-1">
+                                <Text className="text-text-secondary text-sm">Welcome back 👋</Text>
+                                <Text className="text-text text-2xl font-bold">{user?.fullName || 'Student'}</Text>
+                            </View>
+                            <TouchableOpacity className="w-11 h-11 bg-card border border-border rounded-xl items-center justify-center mr-2">
+                                <Bell size={20} color={COLORS.text} />
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                className="w-11 h-11 bg-primary rounded-xl items-center justify-center"
+                                onPress={() => router.push('/(student)/profile')}
+                            >
+                                <Text className="text-white font-bold text-base">
+                                    {(user?.fullName || 'U').charAt(0).toUpperCase()}
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
 
-                {/* Events List */}
-                <View className="px-5">
-                    <View className="flex-row justify-between items-center mb-4">
-                        <Text className="text-text text-lg font-bold">Upcoming Events</Text>
-                        <TouchableOpacity>
-                            <Text className="text-primary font-medium text-sm">See All</Text>
+                        {/* Search Bar */}
+                        <View className="flex-row items-center bg-card border border-border rounded-2xl px-4 h-14">
+                            <Search size={20} color={COLORS.textSecondary} />
+                            <TextInput
+                                placeholder="Search events, clubs..."
+                                className="flex-1 ml-3 text-text text-base"
+                                placeholderTextColor="#94A3B8"
+                                value={searchQuery}
+                                onChangeText={setSearchQuery}
+                            />
+                        </View>
+                    </View>
+
+                    {/* Quick Stats */}
+                    <View className="flex-row px-5 mb-5">
+                        <TouchableOpacity
+                            className="flex-1 bg-secondary p-4 rounded-2xl mr-3"
+                            onPress={() => router.push('/(student)/clubs')}
+                        >
+                            <View className="flex-row items-center justify-between">
+                                <View>
+                                    <Text className="text-white/80 text-xs font-medium">Explore</Text>
+                                    <Text className="text-white text-xl font-bold">Clubs</Text>
+                                </View>
+                                <View className="w-10 h-10 bg-white/20 rounded-xl items-center justify-center">
+                                    <Users size={20} color="#FFF" />
+                                </View>
+                            </View>
+                        </TouchableOpacity>
+                        <TouchableOpacity className="flex-1 bg-primary p-4 rounded-2xl">
+                            <View className="flex-row items-center justify-between">
+                                <View>
+                                    <Text className="text-white/80 text-xs font-medium">Active</Text>
+                                    <Text className="text-white text-xl font-bold">{events.length} Events</Text>
+                                </View>
+                                <View className="w-10 h-10 bg-white/20 rounded-xl items-center justify-center">
+                                    <Sparkles size={20} color="#FFF" />
+                                </View>
+                            </View>
                         </TouchableOpacity>
                     </View>
 
-                    {loading ? (
-                        <View className="py-10">
-                            <ActivityIndicator size="large" color={COLORS.primary} />
+                    {/* Featured Section */}
+                    {events.length > 0 && (
+                        <View className="px-5 mb-2">
+                            <View className="flex-row justify-between items-center mb-4">
+                                <Text className="text-text text-lg font-bold">🔥 Featured Event</Text>
+                            </View>
+                            <FeaturedEventCard event={events[0]} />
                         </View>
-                    ) : events.length > 1 ? (
-                        events.slice(1).map((event: Event) => (
-                            <EventCard key={event.id} event={event} />
-                        ))
-                    ) : events.length === 0 ? (
-                        <View className="items-center justify-center py-16">
-                            <Text className="text-6xl mb-4">📭</Text>
-                            <Text className="text-text font-bold text-lg">No events found</Text>
-                            <Text className="text-text-secondary text-sm mt-1">Check back later for new events</Text>
+                    )}
+
+                    {/* Filter Chips */}
+                    <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        className="mb-4"
+                        contentContainerStyle={{ paddingHorizontal: 20 }}
+                    >
+                        <FilterChip label="All" value="ALL" icon={Sparkles} />
+                        <FilterChip label="Public" value="PUBLIC" />
+                        <FilterChip label="My Clubs" value="MY_CLUBS" />
+                    </ScrollView>
+
+                    {/* Events List */}
+                    <View className="px-5">
+                        <View className="flex-row justify-between items-center mb-4">
+                            <Text className="text-text text-lg font-bold">Upcoming Events</Text>
+                            <TouchableOpacity>
+                                <Text className="text-primary font-medium text-sm">See All</Text>
+                            </TouchableOpacity>
                         </View>
-                    ) : null}
-                </View>
-            </ScrollView>
+
+                        {loading ? (
+                            <View className="py-10">
+                                <ActivityIndicator size="large" color={COLORS.primary} />
+                            </View>
+                        ) : events.length > 1 ? (
+                            events.slice(1).map((event: Event) => (
+                                <EventCard key={event.id} event={event} />
+                            ))
+                        ) : events.length === 0 ? (
+                            <View className="items-center justify-center py-16">
+                                <Text className="text-6xl mb-4">📭</Text>
+                                <Text className="text-text font-bold text-lg">No events found</Text>
+                                <Text className="text-text-secondary text-sm mt-1">Check back later for new events</Text>
+                            </View>
+                        ) : null}
+                    </View>
+                </ScrollView>
+            </KeyboardAvoidingView>
         </SafeAreaView>
     );
 }
