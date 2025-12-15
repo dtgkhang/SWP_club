@@ -1,38 +1,36 @@
 import { Tabs, useRouter } from 'expo-router';
-import { Home, ScanLine, User, Users, Wallet } from 'lucide-react-native';
+import { Compass, Home, Ticket, User, Users } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
-import { Platform, View } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
+import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { COLORS } from '../../constants/theme';
 import { authService } from '../../services/auth.service';
 
-const STAFF_ROLES = ['STAFF', 'LEADER', 'TREASURER', 'ADMIN'];
-
 export default function StudentLayout() {
     const router = useRouter();
-    const [hasStaffRole, setHasStaffRole] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        checkAuthAndRole();
+        checkAuth();
     }, []);
 
-    const checkAuthAndRole = async () => {
+    const checkAuth = async () => {
         try {
             const isAuthenticated = await authService.checkAuth();
             if (!isAuthenticated) {
                 router.replace('/');
                 return;
             }
-
-            const { user } = await authService.getProfile();
-            const isStaff = user?.memberships?.some(m =>
-                STAFF_ROLES.includes(m.role) && m.status === 'ACTIVE'
-            );
-            setHasStaffRole(!!isStaff);
+            setIsLoading(false);
         } catch (error) {
             console.log('Auth check failed:', error);
             router.replace('/');
         }
     };
+
+    if (isLoading) {
+        return null;
+    }
 
     return (
         <Tabs
@@ -45,16 +43,19 @@ export default function StudentLayout() {
                     bottom: 0,
                     left: 0,
                     right: 0,
-                    height: Platform.OS === 'ios' ? 88 : 70,
-                    paddingTop: 12,
-                    paddingBottom: Platform.OS === 'ios' ? 28 : 12,
-                    backgroundColor: '#FFFFFF',
+                    height: Platform.OS === 'ios' ? 90 : 72,
+                    paddingTop: 8,
+                    paddingBottom: Platform.OS === 'ios' ? 30 : 12,
+                    paddingHorizontal: 8,
+                    backgroundColor: Platform.OS === 'ios' ? 'rgba(255,255,255,0.92)' : '#FFFFFF',
                     borderTopWidth: 0,
+                    borderTopLeftRadius: 24,
+                    borderTopRightRadius: 24,
                     shadowColor: '#000',
-                    shadowOffset: { width: 0, height: -4 },
+                    shadowOffset: { width: 0, height: -8 },
                     shadowOpacity: 0.08,
-                    shadowRadius: 12,
-                    elevation: 20,
+                    shadowRadius: 24,
+                    elevation: 24,
                 },
                 tabBarItemStyle: {
                     paddingVertical: 4,
@@ -62,25 +63,20 @@ export default function StudentLayout() {
                 tabBarLabelStyle: {
                     fontSize: 11,
                     fontWeight: '600',
-                    marginTop: 4,
+                    marginTop: 2,
+                    letterSpacing: 0.2,
                 },
                 tabBarIconStyle: {
-                    marginBottom: -2,
+                    marginBottom: 0,
                 },
             }}
         >
             <Tabs.Screen
                 name="home"
                 options={{
-                    title: 'Discover',
+                    title: 'Home',
                     tabBarIcon: ({ color, focused }) => (
-                        <View style={{
-                            backgroundColor: focused ? COLORS.primarySoft : 'transparent',
-                            padding: 8,
-                            borderRadius: 12,
-                        }}>
-                            <Home size={22} color={color} strokeWidth={focused ? 2.5 : 2} />
-                        </View>
+                        <TabIcon icon={Home} color={color} focused={focused} />
                     ),
                 }}
             />
@@ -89,30 +85,8 @@ export default function StudentLayout() {
                 options={{
                     title: 'Clubs',
                     tabBarIcon: ({ color, focused }) => (
-                        <View style={{
-                            backgroundColor: focused ? COLORS.primarySoft : 'transparent',
-                            padding: 8,
-                            borderRadius: 12,
-                        }}>
-                            <Users size={22} color={color} strokeWidth={focused ? 2.5 : 2} />
-                        </View>
+                        <TabIcon icon={Users} color={color} focused={focused} />
                     ),
-                }}
-            />
-            <Tabs.Screen
-                name="scanner"
-                options={{
-                    title: 'Check-in',
-                    tabBarIcon: ({ color, focused }) => (
-                        <View style={{
-                            backgroundColor: focused ? COLORS.primarySoft : 'transparent',
-                            padding: 8,
-                            borderRadius: 12,
-                        }}>
-                            <ScanLine size={22} color={color} strokeWidth={focused ? 2.5 : 2} />
-                        </View>
-                    ),
-                    href: hasStaffRole ? undefined : null,
                 }}
             />
             <Tabs.Screen
@@ -120,13 +94,7 @@ export default function StudentLayout() {
                 options={{
                     title: 'Tickets',
                     tabBarIcon: ({ color, focused }) => (
-                        <View style={{
-                            backgroundColor: focused ? COLORS.primarySoft : 'transparent',
-                            padding: 8,
-                            borderRadius: 12,
-                        }}>
-                            <Wallet size={22} color={color} strokeWidth={focused ? 2.5 : 2} />
-                        </View>
+                        <TabIcon icon={Ticket} color={color} focused={focused} />
                     ),
                 }}
             />
@@ -135,16 +103,11 @@ export default function StudentLayout() {
                 options={{
                     title: 'Profile',
                     tabBarIcon: ({ color, focused }) => (
-                        <View style={{
-                            backgroundColor: focused ? COLORS.primarySoft : 'transparent',
-                            padding: 8,
-                            borderRadius: 12,
-                        }}>
-                            <User size={22} color={color} strokeWidth={focused ? 2.5 : 2} />
-                        </View>
+                        <TabIcon icon={User} color={color} focused={focused} />
                     ),
                 }}
             />
+            {/* Hidden screens */}
             <Tabs.Screen
                 name="events/[id]"
                 options={{
@@ -159,6 +122,71 @@ export default function StudentLayout() {
                     tabBarStyle: { display: 'none' },
                 }}
             />
+            <Tabs.Screen
+                name="edit-profile"
+                options={{
+                    href: null,
+                    tabBarStyle: { display: 'none' },
+                }}
+            />
         </Tabs>
     );
 }
+
+// Animated Tab Icon Component
+function TabIcon({ icon: Icon, color, focused }: { icon: any; color: string; focused: boolean }) {
+    const scale = useSharedValue(1);
+
+    useEffect(() => {
+        if (focused) {
+            scale.value = withSpring(1.15, { damping: 12, stiffness: 200 });
+        } else {
+            scale.value = withSpring(1, { damping: 12, stiffness: 200 });
+        }
+    }, [focused]);
+
+    const animatedStyle = useAnimatedStyle(() => ({
+        transform: [{ scale: scale.value }],
+    }));
+
+    return (
+        <Animated.View style={[styles.iconContainer, animatedStyle]}>
+            <View style={[
+                styles.iconBackground,
+                focused && styles.iconBackgroundActive
+            ]}>
+                <Icon
+                    size={22}
+                    color={focused ? COLORS.primary : color}
+                    strokeWidth={focused ? 2.5 : 1.8}
+                />
+            </View>
+            {focused && <View style={styles.indicator} />}
+        </Animated.View>
+    );
+}
+
+const styles = StyleSheet.create({
+    iconContainer: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: 48,
+        height: 36,
+    },
+    iconBackground: {
+        padding: 6,
+        borderRadius: 12,
+        backgroundColor: 'transparent',
+    },
+    iconBackgroundActive: {
+        backgroundColor: COLORS.primarySoft,
+    },
+    indicator: {
+        position: 'absolute',
+        bottom: -6,
+        width: 4,
+        height: 4,
+        borderRadius: 2,
+        backgroundColor: COLORS.primary,
+    },
+});

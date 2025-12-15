@@ -1,12 +1,54 @@
-import { Calendar, CheckCircle, MapPin, Ticket, XCircle } from 'lucide-react-native';
+import { Calendar, CheckCircle, MapPin, Ticket, X, XCircle, ZoomIn } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
-import { FlatList, Image, RefreshControl, Text, TouchableOpacity, View } from 'react-native';
+import { DimensionValue, Dimensions, FlatList, Image, Modal, RefreshControl, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../../constants/theme';
 import { useToast } from '../../contexts/ToastContext';
 import { eventService } from '../../services/event.service';
 
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const QR_POPUP_SIZE = SCREEN_WIDTH - 80;
+
 type TabType = 'ALL' | 'ACTIVE' | 'USED' | 'EXPIRED';
+
+// Skeleton Component
+const Skeleton = ({ width, height, rounded = 8 }: { width: DimensionValue; height: number; rounded?: number }) => (
+    <View
+        className="bg-border/50 overflow-hidden"
+        style={{ width, height, borderRadius: rounded }}
+    >
+        <View className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+    </View>
+);
+
+// Ticket Skeleton
+const TicketSkeleton = () => (
+    <View className="bg-card rounded-2xl mb-4 overflow-hidden border border-border mx-1">
+        {/* Header Skeleton */}
+        <View className="p-4 bg-border/30 flex-row justify-between items-center">
+            <View className="flex-1 mr-4">
+                <Skeleton width="70%" height={18} rounded={4} />
+                <View className="flex-row items-center mt-2">
+                    <Skeleton width={80} height={12} rounded={4} />
+                    <View className="mx-2" />
+                    <Skeleton width={60} height={12} rounded={4} />
+                </View>
+            </View>
+            <Skeleton width={60} height={24} rounded={8} />
+        </View>
+
+        {/* QR Skeleton */}
+        <View className="p-6 items-center justify-center bg-card relative">
+            <View className="absolute -left-3 top-0 w-6 h-6 rounded-full bg-background" />
+            <View className="absolute -right-3 top-0 w-6 h-6 rounded-full bg-background" />
+            <View className="absolute top-0 left-6 right-6 border-t border-dashed border-border" />
+            <Skeleton width={144} height={144} rounded={12} />
+            <View className="mt-4">
+                <Skeleton width={180} height={12} rounded={4} />
+            </View>
+        </View>
+    </View>
+);
 
 export default function WalletScreen() {
     const { showError } = useToast();
@@ -14,6 +56,10 @@ export default function WalletScreen() {
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [activeTab, setActiveTab] = useState<TabType>('ALL');
+
+    // QR Popup state
+    const [selectedTicket, setSelectedTicket] = useState<any>(null);
+    const [showQRModal, setShowQRModal] = useState(false);
 
     useEffect(() => {
         loadTickets();
@@ -35,6 +81,11 @@ export default function WalletScreen() {
     const onRefresh = () => {
         setRefreshing(true);
         loadTickets();
+    };
+
+    const openQRPopup = (ticket: any) => {
+        setSelectedTicket(ticket);
+        setShowQRModal(true);
     };
 
     const getStatusInfo = (status: string) => {
@@ -119,10 +170,21 @@ export default function WalletScreen() {
                     <View className="absolute top-0 left-6 right-6 border-t border-dashed border-border" />
 
                     {item.qrCode && !isInactive ? (
-                        <Image
-                            source={{ uri: `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${item.qrCode}` }}
-                            className="w-36 h-36 rounded-lg"
-                        />
+                        <TouchableOpacity
+                            onPress={() => openQRPopup(item)}
+                            activeOpacity={0.8}
+                            className="relative"
+                        >
+                            <Image
+                                source={{ uri: `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${item.qrCode}` }}
+                                className="w-36 h-36 rounded-lg"
+                            />
+                            {/* Zoom hint overlay */}
+                            <View className="absolute bottom-2 right-2 bg-black/60 px-2 py-1 rounded-lg flex-row items-center">
+                                <ZoomIn size={12} color="#FFF" />
+                                <Text className="text-white text-xs ml-1">Tap</Text>
+                            </View>
+                        </TouchableOpacity>
                     ) : (
                         <View className={`w-36 h-36 rounded-lg items-center justify-center ${isInactive ? 'bg-border/50' : 'bg-gray-100'}`}>
                             <Ticket size={40} color={COLORS.textLight} />
@@ -134,8 +196,8 @@ export default function WalletScreen() {
 
                     {!isInactive && item.qrCode && (
                         <>
-                            <Text className="text-text-secondary text-xs mt-4 text-center">
-                                Show this QR code at the entrance
+                            <Text className="text-primary text-xs mt-4 text-center font-medium">
+                                Tap QR to enlarge for scanning
                             </Text>
                             <Text className="text-text font-mono text-xs mt-1 bg-background px-3 py-1 rounded border border-border">
                                 {item.qrCode}
@@ -156,8 +218,100 @@ export default function WalletScreen() {
         );
     };
 
+    // Loading Skeleton
+    if (loading && tickets.length === 0) {
+        return (
+            <SafeAreaView className="flex-1 bg-background" edges={['top']}>
+                {/* Header */}
+                <View className="px-5 pt-2 pb-4">
+                    <Text className="text-text text-2xl font-bold mb-1">My Tickets</Text>
+                    <Text className="text-text-secondary text-sm">Your event tickets and passes</Text>
+                </View>
+
+                {/* Tabs Skeleton */}
+                <View className="flex-row px-5 mb-4">
+                    <Skeleton width={80} height={36} rounded={12} />
+                    <View className="ml-2" />
+                    <Skeleton width={80} height={36} rounded={12} />
+                    <View className="ml-2" />
+                    <Skeleton width={80} height={36} rounded={12} />
+                </View>
+
+                {/* Ticket Skeletons */}
+                <View className="flex-1 px-4">
+                    <TicketSkeleton />
+                    <TicketSkeleton />
+                </View>
+            </SafeAreaView>
+        );
+    }
+
     return (
         <SafeAreaView className="flex-1 bg-background" edges={['top']}>
+            {/* QR Popup Modal */}
+            <Modal
+                visible={showQRModal}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setShowQRModal(false)}
+            >
+                <View className="flex-1 bg-black/80 items-center justify-center p-6">
+                    <View className="bg-white rounded-3xl p-6 items-center w-full max-w-sm">
+                        {/* Close Button */}
+                        <TouchableOpacity
+                            className="absolute top-4 right-4 w-10 h-10 bg-border/30 rounded-full items-center justify-center"
+                            onPress={() => setShowQRModal(false)}
+                        >
+                            <X size={20} color={COLORS.text} />
+                        </TouchableOpacity>
+
+                        {/* Event Title */}
+                        <Text className="text-text font-bold text-lg mb-2 text-center mt-4">
+                            {selectedTicket?.event?.title || 'Event Ticket'}
+                        </Text>
+                        <Text className="text-text-secondary text-sm mb-6">
+                            Scan this code at entrance
+                        </Text>
+
+                        {/* Large QR Code */}
+                        <View className="bg-white p-4 rounded-2xl border-2 border-border shadow-lg">
+                            <Image
+                                source={{ uri: `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${selectedTicket?.qrCode}` }}
+                                style={{ width: QR_POPUP_SIZE, height: QR_POPUP_SIZE }}
+                                className="rounded-xl"
+                            />
+                        </View>
+
+                        {/* QR Code Text */}
+                        <View className="mt-4 bg-background px-4 py-2 rounded-xl border border-border">
+                            <Text className="text-text font-mono text-sm">
+                                {selectedTicket?.qrCode}
+                            </Text>
+                        </View>
+
+                        {/* Event Info */}
+                        <View className="flex-row items-center mt-4">
+                            <Calendar size={14} color={COLORS.textSecondary} />
+                            <Text className="text-text-secondary text-sm ml-2">
+                                {selectedTicket?.event?.startTime
+                                    ? new Date(selectedTicket.event.startTime).toLocaleDateString('vi-VN', {
+                                        weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
+                                    })
+                                    : 'TBA'}
+                            </Text>
+                        </View>
+
+                        {/* Close */}
+                        <TouchableOpacity
+                            className="mt-6 bg-primary px-8 py-3 rounded-xl"
+                            onPress={() => setShowQRModal(false)}
+                        >
+                            <Text className="text-white font-bold">Close</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
+
             {/* Header */}
             <View className="px-5 pt-2 pb-4">
                 <Text className="text-text text-2xl font-bold mb-1">My Tickets</Text>

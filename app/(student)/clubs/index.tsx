@@ -1,15 +1,13 @@
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
-import { ChevronRight, Clock, Search, Sparkles, Users } from 'lucide-react-native';
+import { ChevronRight, Clock, Crown, Search, Sparkles, Star, Users } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Dimensions, FlatList, KeyboardAvoidingView, Platform, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, FlatList, KeyboardAvoidingView, Platform, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../../../constants/theme';
 import { useToast } from '../../../contexts/ToastContext';
 import { authService } from '../../../services/auth.service';
 import { Club, clubService } from '../../../services/club.service';
-
-const { width } = Dimensions.get('window');
 
 export default function ClubList() {
     const router = useRouter();
@@ -68,63 +66,82 @@ export default function ClubList() {
     const myClubs = allClubs.filter(c => myClubIds.includes(c.id));
     const displayedClubs = activeTab === 'EXPLORE' ? exploreClubs : myClubs;
 
-    // Tab Component
-    const Tab = ({ label, value, count }: { label: string; value: 'EXPLORE' | 'MY_CLUBS'; count: number }) => (
-        <TouchableOpacity
-            onPress={() => setActiveTab(value)}
-            className={`flex-1 py-3 items-center rounded-xl ${activeTab === value ? 'bg-primary' : 'bg-transparent'}`}
-        >
-            <Text className={`font-bold ${activeTab === value ? 'text-white' : 'text-text-secondary'}`}>
-                {label} ({count})
-            </Text>
-        </TouchableOpacity>
-    );
-
-    // Club Card
-    const renderClubCard = ({ item: club }: { item: Club }) => {
+    // Premium Club Card
+    const renderClubCard = ({ item: club, index }: { item: Club; index: number }) => {
         const isMember = myClubIds.includes(club.id);
+        const memberCount = club._count?.memberships || 0;
+        const eventCount = club._count?.events || 0;
+
         return (
             <TouchableOpacity
-                className="bg-card rounded-2xl mb-3 overflow-hidden border border-border"
+                className="mx-5 mb-4 bg-card rounded-3xl overflow-hidden border border-border shadow-sm"
                 onPress={() => router.push({
                     pathname: '/(student)/clubs/[id]' as any,
                     params: { id: club.slug || club.id, isMember: isMember ? 'true' : 'false' }
                 })}
-                activeOpacity={0.7}
+                activeOpacity={0.8}
             >
-                <View className="flex-row">
+                {/* Club Image with Gradient */}
+                <View className="relative">
                     <Image
-                        source={{ uri: club.logoUrl || 'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=200' }}
-                        style={{ width: 96, height: 96 }}
+                        source={{ uri: club.logoUrl || 'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=400' }}
+                        style={{ width: '100%', height: 140 }}
                         contentFit="cover"
-                        transition={500}
+                        transition={300}
                     />
-                    <View className="flex-1 p-3 justify-center">
-                        <View className="flex-row items-center mb-1">
-                            <Text className="text-text font-bold text-base flex-1" numberOfLines={1}>{club.name}</Text>
-                            {isMember && (
-                                <View className="bg-success-soft px-2 py-0.5 rounded">
-                                    <Text className="text-success text-xs font-bold">Member</Text>
-                                </View>
-                            )}
+                    <View className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+
+                    {/* Badge */}
+                    {isMember && (
+                        <View className="absolute top-3 right-3 bg-success px-3 py-1 rounded-full flex-row items-center">
+                            <Star size={12} color="#FFF" fill="#FFF" />
+                            <Text className="text-white text-xs font-bold ml-1">Member</Text>
                         </View>
-                        <Text className="text-text-secondary text-xs mb-2" numberOfLines={1}>
-                            {club.description || 'No description'}
+                    )}
+
+                    {/* Featured Badge for first club */}
+                    {index === 0 && activeTab === 'EXPLORE' && (
+                        <View className="absolute top-3 left-3 bg-primary px-3 py-1 rounded-full flex-row items-center">
+                            <Crown size={12} color="#FFF" />
+                            <Text className="text-white text-xs font-bold ml-1">Featured</Text>
+                        </View>
+                    )}
+
+                    {/* Club Name on Image */}
+                    <View className="absolute bottom-0 left-0 right-0 p-4">
+                        <Text className="text-white text-lg font-bold" numberOfLines={1}>
+                            {club.name}
                         </Text>
-                        <View className="flex-row items-center">
-                            <Users size={12} color={COLORS.secondary} />
-                            <Text className="text-secondary text-xs font-medium ml-1">
-                                {club._count?.memberships || 0} members
-                            </Text>
-                            <View className="w-1 h-1 bg-border rounded-full mx-2" />
-                            <Sparkles size={12} color={COLORS.primary} />
-                            <Text className="text-primary text-xs font-medium ml-1">
-                                {club._count?.events || 0} events
-                            </Text>
-                        </View>
                     </View>
-                    <View className="justify-center pr-3">
-                        <ChevronRight size={18} color={COLORS.border} />
+                </View>
+
+                {/* Club Info */}
+                <View className="p-4">
+                    <Text className="text-text-secondary text-sm mb-3" numberOfLines={2}>
+                        {club.description || 'A great club to join and explore new opportunities with fellow students.'}
+                    </Text>
+
+                    {/* Stats Row */}
+                    <View className="flex-row items-center justify-between">
+                        <View className="flex-row items-center">
+                            <View className="flex-row items-center bg-secondary-soft px-2.5 py-1.5 rounded-lg mr-2">
+                                <Users size={14} color={COLORS.secondary} />
+                                <Text className="text-secondary text-xs font-bold ml-1.5">{memberCount}</Text>
+                            </View>
+                            <View className="flex-row items-center bg-primary-soft px-2.5 py-1.5 rounded-lg">
+                                <Sparkles size={14} color={COLORS.primary} />
+                                <Text className="text-primary text-xs font-bold ml-1.5">{eventCount}</Text>
+                            </View>
+                        </View>
+
+                        <View className="flex-row items-center">
+                            <Text className="text-primary text-sm font-medium mr-1">
+                                {isMember ? 'View' : 'Join'}
+                            </Text>
+                            <View className="w-6 h-6 bg-primary-soft rounded-full items-center justify-center">
+                                <ChevronRight size={14} color={COLORS.primary} />
+                            </View>
+                        </View>
                     </View>
                 </View>
             </TouchableOpacity>
@@ -132,15 +149,15 @@ export default function ClubList() {
     };
 
     const ListHeader = () => (
-        <View>
+        <View className="mb-2">
             {/* Header */}
-            <View className="flex-row justify-between items-center px-5 pt-2 pb-4">
+            <View className="flex-row justify-between items-center px-5 pt-4 pb-5">
                 <View>
-                    <Text className="text-text text-2xl font-bold mb-1">Clubs</Text>
-                    <Text className="text-text-secondary text-sm">Discover and join student clubs</Text>
+                    <Text className="text-text text-2xl font-bold">Clubs</Text>
+                    <Text className="text-text-secondary text-sm mt-0.5">Discover amazing student clubs</Text>
                 </View>
                 <TouchableOpacity
-                    className="w-10 h-10 bg-card rounded-xl items-center justify-center border border-border"
+                    className="w-11 h-11 bg-card rounded-xl items-center justify-center border border-border"
                     onPress={() => router.push('/(student)/clubs/my-applications')}
                 >
                     <Clock size={20} color={COLORS.text} />
@@ -148,8 +165,8 @@ export default function ClubList() {
             </View>
 
             {/* Search Bar */}
-            <View className="px-5 mb-4">
-                <View className="flex-row items-center bg-card border border-border rounded-2xl px-4 h-12">
+            <View className="px-5 mb-5">
+                <View className="flex-row items-center bg-card border border-border rounded-2xl px-4 h-14 shadow-sm">
                     <Search size={20} color={COLORS.textSecondary} />
                     <TextInput
                         placeholder="Search clubs..."
@@ -161,30 +178,48 @@ export default function ClubList() {
                 </View>
             </View>
 
-            {/* Tabs */}
-            <View className="mx-5 mb-4 p-1 bg-card border border-border rounded-2xl flex-row">
-                <Tab label="Explore" value="EXPLORE" count={exploreClubs.length} />
-                <Tab label="My Clubs" value="MY_CLUBS" count={myClubs.length} />
+            {/* Premium Tabs */}
+            <View className="mx-5 mb-5 p-1.5 bg-card border border-border rounded-2xl flex-row shadow-sm">
+                <TouchableOpacity
+                    onPress={() => setActiveTab('EXPLORE')}
+                    className={`flex-1 py-3.5 items-center rounded-xl flex-row justify-center ${activeTab === 'EXPLORE' ? 'bg-primary shadow-md' : ''}`}
+                >
+                    <Search size={16} color={activeTab === 'EXPLORE' ? '#FFF' : COLORS.textSecondary} />
+                    <Text className={`font-bold ml-2 ${activeTab === 'EXPLORE' ? 'text-white' : 'text-text-secondary'}`}>
+                        Explore ({exploreClubs.length})
+                    </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                    onPress={() => setActiveTab('MY_CLUBS')}
+                    className={`flex-1 py-3.5 items-center rounded-xl flex-row justify-center ${activeTab === 'MY_CLUBS' ? 'bg-primary shadow-md' : ''}`}
+                >
+                    <Star size={16} color={activeTab === 'MY_CLUBS' ? '#FFF' : COLORS.textSecondary} />
+                    <Text className={`font-bold ml-2 ${activeTab === 'MY_CLUBS' ? 'text-white' : 'text-text-secondary'}`}>
+                        My Clubs ({myClubs.length})
+                    </Text>
+                </TouchableOpacity>
             </View>
         </View>
     );
 
     const EmptyList = () => (
-        <View className="items-center justify-center py-16">
-            <Text className="text-6xl mb-4">
-                {activeTab === 'EXPLORE' ? '🔍' : '📭'}
+        <View className="items-center justify-center py-16 px-8">
+            <View className="w-20 h-20 bg-border/30 rounded-full items-center justify-center mb-4">
+                <Text className="text-4xl">
+                    {activeTab === 'EXPLORE' ? '🎉' : '🔍'}
+                </Text>
+            </View>
+            <Text className="text-text font-bold text-lg text-center">
+                {activeTab === 'EXPLORE' ? "You've joined all clubs!" : 'No clubs joined yet'}
             </Text>
-            <Text className="text-text font-bold text-lg">
-                {activeTab === 'EXPLORE' ? 'No clubs to explore' : 'No clubs joined yet'}
-            </Text>
-            <Text className="text-text-secondary text-sm mt-1 text-center px-8">
+            <Text className="text-text-secondary text-sm mt-2 text-center">
                 {activeTab === 'EXPLORE'
-                    ? 'You have joined all available clubs!'
+                    ? 'Amazing! You are part of every club on campus.'
                     : 'Explore clubs and join to see them here'}
             </Text>
             {activeTab === 'MY_CLUBS' && (
                 <TouchableOpacity
-                    className="mt-4 bg-primary px-6 py-3 rounded-xl"
+                    className="mt-6 bg-primary px-8 py-4 rounded-xl shadow-md"
                     onPress={() => setActiveTab('EXPLORE')}
                 >
                     <Text className="text-white font-bold">Explore Clubs</Text>
@@ -207,10 +242,13 @@ export default function ClubList() {
                     ListHeaderComponent={ListHeader}
                     ListEmptyComponent={!loading ? EmptyList : null}
                     showsVerticalScrollIndicator={false}
-                    initialNumToRender={10}
+                    initialNumToRender={6}
                     windowSize={5}
-                    maxToRenderPerBatch={10}
-                    ListFooterComponent={loading ? <View className="py-10"><ActivityIndicator size="large" color={COLORS.primary} /></View> : null}
+                    ListFooterComponent={loading ? (
+                        <View className="py-10">
+                            <ActivityIndicator size="large" color={COLORS.primary} />
+                        </View>
+                    ) : null}
                 />
             </KeyboardAvoidingView>
         </SafeAreaView>

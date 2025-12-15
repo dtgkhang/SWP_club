@@ -1,9 +1,9 @@
 
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
-import { Bell, Calendar, ChevronRight, Clock, MapPin, Search, Sparkles, Users } from 'lucide-react-native';
+import { Bell, Calendar, ChevronRight, MapPin, Search, Sparkles, Users } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Dimensions, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, DimensionValue, Dimensions, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../../constants/theme';
 import { useToast } from '../../contexts/ToastContext';
@@ -12,6 +12,69 @@ import { Event, eventService } from '../../services/event.service';
 
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = width - 40;
+
+// Skeleton Component
+const Skeleton = ({ width: w, height, rounded = 8, className = '' }: { width: DimensionValue; height: number; rounded?: number; className?: string }) => (
+    <View
+        className={`bg-border/40 ${className}`}
+        style={{ width: w, height, borderRadius: rounded }}
+    />
+);
+
+// Home Loading Skeleton
+const HomeSkeleton = () => (
+    <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+        {/* Header Skeleton */}
+        <View className="px-5 pt-2 pb-4">
+            <View className="flex-row justify-between items-center mb-5">
+                <View>
+                    <Skeleton width={100} height={14} rounded={4} />
+                    <View className="mt-2">
+                        <Skeleton width={160} height={24} rounded={6} />
+                    </View>
+                </View>
+                <View className="flex-row">
+                    <Skeleton width={44} height={44} rounded={12} className="mr-2" />
+                    <Skeleton width={44} height={44} rounded={12} />
+                </View>
+            </View>
+            <Skeleton width="100%" height={56} rounded={16} />
+        </View>
+
+        {/* Stats Skeleton */}
+        <View className="flex-row px-5 mb-5">
+            <View className="flex-1 mr-3">
+                <Skeleton width="100%" height={80} rounded={16} />
+            </View>
+            <View className="flex-1">
+                <Skeleton width="100%" height={80} rounded={16} />
+            </View>
+        </View>
+
+        {/* Featured Skeleton */}
+        <View className="px-5 mb-6">
+            <Skeleton width={140} height={20} rounded={6} className="mb-4" />
+            <Skeleton width={CARD_WIDTH} height={208} rounded={24} />
+        </View>
+
+        {/* Filter Skeleton */}
+        <View className="flex-row px-5 mb-4">
+            <Skeleton width={70} height={40} rounded={12} className="mr-2" />
+            <Skeleton width={80} height={40} rounded={12} className="mr-2" />
+            <Skeleton width={90} height={40} rounded={12} />
+        </View>
+
+        {/* Events Skeleton */}
+        <View className="px-5">
+            <Skeleton width={140} height={20} rounded={6} className="mb-4" />
+            {[1, 2, 3].map(i => (
+                <View key={i} className="mb-3">
+                    <Skeleton width="100%" height={110} rounded={16} />
+                </View>
+            ))}
+        </View>
+    </ScrollView>
+);
 
 export default function StudentHome() {
     const router = useRouter();
@@ -130,46 +193,67 @@ export default function StudentHome() {
         </TouchableOpacity>
     );
 
-    // Regular Event Card
+    // Regular Event Card - Premium Design
     const EventCard = ({ event }: { event: Event }) => (
         <TouchableOpacity
-            className="bg-card rounded-2xl mb-4 overflow-hidden border border-border flex-row"
+            className="bg-card rounded-2xl mb-3 overflow-hidden border border-border shadow-sm"
             onPress={() => router.push(`/(student)/events/${event.id}`)}
-            activeOpacity={0.7}
-            style={{ height: 120 }}
+            activeOpacity={0.8}
+            style={{ height: 110 }}
         >
-            <Image
-                source={{ uri: event.club?.logoUrl || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=300' }}
-                style={{ width: 112, height: '100%' }}
-                contentFit="cover"
-                transition={500}
-            />
-            <View className="flex-1 p-4 justify-between">
-                <View>
-                    <View className="flex-row items-center mb-1">
-                        <View className={`px-2 py-0.5 rounded ${event.pricingType === 'FREE' ? 'bg-success-soft' : 'bg-primary-soft'}`}>
-                            <Text className={`text-xs font-bold ${event.pricingType === 'FREE' ? 'text-success' : 'text-primary'}`}>
-                                {event.pricingType === 'FREE' ? 'FREE' : `${(event.price ?? 0).toLocaleString()}₫`}
-                            </Text>
+            <View className="flex-row h-full">
+                {/* Image */}
+                <Image
+                    source={{ uri: event.club?.logoUrl || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=300' }}
+                    style={{ width: 100, height: '100%' }}
+                    contentFit="cover"
+                    transition={300}
+                />
+
+                {/* Content */}
+                <View className="flex-1 p-3 justify-between" style={{ minWidth: 0 }}>
+                    {/* Top Section */}
+                    <View style={{ minWidth: 0 }}>
+                        <View className="flex-row items-center mb-1.5">
+                            <View className={`px-2 py-0.5 rounded-md ${event.pricingType === 'FREE' ? 'bg-success-soft' : 'bg-primary-soft'}`}>
+                                <Text className={`text-xs font-bold ${event.pricingType === 'FREE' ? 'text-success' : 'text-primary'}`}>
+                                    {event.pricingType === 'FREE' ? 'FREE' : `${(event.price ?? 0).toLocaleString()}₫`}
+                                </Text>
+                            </View>
+                            <View className="bg-secondary-soft px-2 py-0.5 rounded-md ml-1.5">
+                                <Text className="text-secondary text-xs font-medium">{event.type}</Text>
+                            </View>
                         </View>
+                        <Text
+                            className="text-text font-bold text-base"
+                            numberOfLines={2}
+                            style={{ lineHeight: 20 }}
+                        >
+                            {event.title}
+                        </Text>
                     </View>
-                    <Text className="text-text font-bold text-base" numberOfLines={1}>{event.title}</Text>
-                </View>
-                <View>
-                    <View className="flex-row items-center">
-                        <Clock size={12} color={COLORS.textSecondary} />
-                        <Text className="text-text-secondary text-xs ml-1">
+
+                    {/* Bottom Section */}
+                    <View className="flex-row items-center" style={{ minWidth: 0 }}>
+                        <Calendar size={11} color={COLORS.textSecondary} />
+                        <Text className="text-text-secondary text-xs ml-1" numberOfLines={1}>
                             {event.startTime
                                 ? new Date(event.startTime).toLocaleDateString('vi-VN', { day: 'numeric', month: 'short' })
                                 : 'TBD'}
                         </Text>
-                        <View className="w-1 h-1 bg-border rounded-full mx-2" />
-                        <Text className="text-secondary text-xs font-medium">{event.club?.name}</Text>
+                        <Text className="text-text-secondary text-xs mx-1">•</Text>
+                        <Text className="text-primary text-xs font-medium flex-shrink" numberOfLines={1} style={{ flex: 1 }}>
+                            {event.club?.name}
+                        </Text>
                     </View>
                 </View>
-            </View>
-            <View className="justify-center pr-3">
-                <ChevronRight size={18} color={COLORS.border} />
+
+                {/* Arrow */}
+                <View className="justify-center pr-2">
+                    <View className="w-7 h-7 bg-background rounded-full items-center justify-center">
+                        <ChevronRight size={16} color={COLORS.primary} />
+                    </View>
+                </View>
             </View>
         </TouchableOpacity>
     );
