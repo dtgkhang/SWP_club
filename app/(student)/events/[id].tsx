@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ArrowLeft, Calendar, Clock, Heart, MapPin, Share2, Ticket, Users } from 'lucide-react-native';
+import { ArrowLeft, Calendar, CheckCircle, Clock, Heart, MapPin, Share2, Ticket, Users } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Dimensions, Image, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -13,9 +13,15 @@ export default function EventDetail() {
     const router = useRouter();
     const [event, setEvent] = useState<Event | null>(null);
     const [loading, setLoading] = useState(true);
+    const [hasRegistered, setHasRegistered] = useState(false);
+    const [checkingRegistration, setCheckingRegistration] = useState(true);
+    const [userTicket, setUserTicket] = useState<any>(null);
 
     useEffect(() => {
-        if (id) loadEventDetail();
+        if (id) {
+            loadEventDetail();
+            checkRegistration();
+        }
     }, [id]);
 
     const loadEventDetail = async () => {
@@ -27,6 +33,24 @@ export default function EventDetail() {
             console.error('Error loading event:', error);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const checkRegistration = async () => {
+        try {
+            setCheckingRegistration(true);
+            const tickets = await eventService.getMyTickets();
+            const existingTicket = tickets.find((t: any) =>
+                t.event?.id === id && ['PAID', 'INIT', 'RESERVED'].includes(t.status)
+            );
+            if (existingTicket) {
+                setHasRegistered(true);
+                setUserTicket(existingTicket);
+            }
+        } catch (error) {
+            console.log('Error checking registration:', error);
+        } finally {
+            setCheckingRegistration(false);
         }
     };
 
@@ -82,9 +106,9 @@ export default function EventDetail() {
 
                 {/* Price Badge */}
                 <View className="absolute bottom-4 left-4">
-                    <View className={`px-4 py-2 rounded-xl ${isFree ? 'bg-success' : 'bg-primary'}`}>
+                    <View className={`px-4 py-2 rounded-xl ${hasRegistered ? 'bg-success' : isFree ? 'bg-success' : 'bg-primary'}`}>
                         <Text className="text-white font-bold text-lg">
-                            {isFree ? 'FREE' : `${price.toLocaleString()}₫`}
+                            {hasRegistered ? '✓ Registered' : isFree ? 'FREE' : `${price.toLocaleString()}₫`}
                         </Text>
                     </View>
                 </View>
@@ -187,21 +211,44 @@ export default function EventDetail() {
                 </View>
             </ScrollView>
 
-            {/* Bottom CTA */}
-            <View className="absolute bottom-0 left-0 right-0 bg-card border-t border-border px-5 pt-4 pb-8">
-                <TouchableOpacity
-                    className={`w-full py-4 rounded-2xl items-center flex-row justify-center ${isFree ? 'bg-success' : 'bg-primary'}`}
-                    onPress={() => router.push({
-                        pathname: '/(student)/payment',
-                        params: { eventId: event.id, eventTitle: event.title, amount: price, isFree: isFree ? 'true' : 'false' }
-                    })}
-                >
-                    <Ticket size={20} color="#FFF" />
-                    <Text className="text-white font-bold text-base ml-2">
-                        {isFree ? 'Register Now - Free' : `Get Ticket - ${price.toLocaleString()}₫`}
-                    </Text>
-                </TouchableOpacity>
-            </View>
+            {/* Bottom CTA - Wait for check to complete */}
+            {!checkingRegistration && (
+                <View className="absolute bottom-0 left-0 right-0 bg-card border-t border-border px-5 pt-4 pb-8">
+                    {hasRegistered ? (
+                        // Already registered - Show registered status
+                        <View className="bg-success-soft border border-success rounded-2xl p-4 items-center">
+                            <View className="flex-row items-center mb-2">
+                                <CheckCircle size={24} color={COLORS.success} />
+                                <Text className="text-success font-bold text-lg ml-2">You're Registered!</Text>
+                            </View>
+                            <Text className="text-text-secondary text-center mb-3">
+                                You have already registered for this event. Check your tickets in the wallet.
+                            </Text>
+                            <TouchableOpacity
+                                className="bg-success px-6 py-3 rounded-xl flex-row items-center"
+                                onPress={() => router.push('/(student)/wallet')}
+                            >
+                                <Ticket size={18} color="#FFF" />
+                                <Text className="text-white font-bold ml-2">View My Ticket</Text>
+                            </TouchableOpacity>
+                        </View>
+                    ) : (
+                        // Not registered - Show register button
+                        <TouchableOpacity
+                            className={`w-full py-4 rounded-2xl items-center flex-row justify-center ${isFree ? 'bg-success' : 'bg-primary'}`}
+                            onPress={() => router.push({
+                                pathname: '/(student)/payment',
+                                params: { eventId: event.id, eventTitle: event.title, amount: price, isFree: isFree ? 'true' : 'false' }
+                            })}
+                        >
+                            <Ticket size={20} color="#FFF" />
+                            <Text className="text-white font-bold text-base ml-2">
+                                {isFree ? 'Register Now - Free' : `Get Ticket - ${price.toLocaleString()}₫`}
+                            </Text>
+                        </TouchableOpacity>
+                    )}
+                </View>
+            )}
         </View>
     );
 }

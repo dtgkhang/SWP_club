@@ -90,8 +90,8 @@ export const eventService = {
     },
 
     async getMyTickets(): Promise<any[]> {
-        const response = await api<{ success: boolean; data: any[] }>('/tickets/my-tickets');
-        return response.data || [];
+        const response = await api<{ success: boolean; data: { tickets: any[]; total: number } }>('/tickets/my-tickets');
+        return response.data?.tickets || [];
     },
 
     async checkIn(qrCode: string): Promise<any> {

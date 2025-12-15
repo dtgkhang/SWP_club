@@ -2,7 +2,7 @@ import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { ChevronRight, Clock, Search, Sparkles, Users } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Dimensions, FlatList, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Dimensions, FlatList, KeyboardAvoidingView, Platform, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../../../constants/theme';
 import { useToast } from '../../../contexts/ToastContext';
@@ -195,19 +195,24 @@ export default function ClubList() {
 
     return (
         <SafeAreaView className="flex-1 bg-background" edges={['top']}>
-            <FlatList
-                data={displayedClubs}
-                renderItem={renderClubCard}
-                keyExtractor={item => item.id}
-                contentContainerStyle={{ paddingBottom: 100 }}
-                ListHeaderComponent={ListHeader}
-                ListEmptyComponent={!loading ? EmptyList : null}
-                showsVerticalScrollIndicator={false}
-                initialNumToRender={10}
-                windowSize={5}
-                maxToRenderPerBatch={10}
-                ListFooterComponent={loading ? <View className="py-10"><ActivityIndicator size="large" color={COLORS.primary} /></View> : null}
-            />
+            <KeyboardAvoidingView
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                style={{ flex: 1 }}
+            >
+                <FlatList
+                    data={displayedClubs}
+                    renderItem={renderClubCard}
+                    keyExtractor={item => item.id}
+                    contentContainerStyle={{ paddingBottom: 100 }}
+                    ListHeaderComponent={ListHeader}
+                    ListEmptyComponent={!loading ? EmptyList : null}
+                    showsVerticalScrollIndicator={false}
+                    initialNumToRender={10}
+                    windowSize={5}
+                    maxToRenderPerBatch={10}
+                    ListFooterComponent={loading ? <View className="py-10"><ActivityIndicator size="large" color={COLORS.primary} /></View> : null}
+                />
+            </KeyboardAvoidingView>
         </SafeAreaView>
     );
 }

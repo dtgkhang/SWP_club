@@ -78,9 +78,16 @@ export default function PaymentScreen() {
             setStatus('SUCCESS');
             showSuccess('Registration Complete!', 'Your ticket has been added to your wallet');
         } catch (error: any) {
-            setErrorMessage(error.message || 'Registration failed');
+            const msg = error.message || 'Registration failed';
+            // Check if already registered
+            if (msg.includes('đã đăng ký') || msg.includes('already registered')) {
+                showInfo('Already Registered', 'You have already registered for this event!');
+                router.replace('/(student)/wallet');
+                return;
+            }
+            setErrorMessage(msg);
             setStatus('ERROR');
-            showError('Registration Failed', error.message || 'Please try again');
+            showError('Registration Failed', msg);
         }
     };
 
@@ -106,9 +113,16 @@ export default function PaymentScreen() {
                 showSuccess('Registration Complete!', 'Your ticket has been added');
             }
         } catch (error: any) {
-            setErrorMessage(error.message || 'Registration failed');
+            const msg = error.message || 'Registration failed';
+            // Check if already registered
+            if (msg.includes('đã đăng ký') || msg.includes('already registered')) {
+                showInfo('Already Registered', 'You have already registered for this event!');
+                router.replace('/(student)/wallet');
+                return;
+            }
+            setErrorMessage(msg);
             setStatus('ERROR');
-            showError('Payment Failed', error.message || 'Please try again');
+            showError('Payment Failed', msg);
         }
     };
 

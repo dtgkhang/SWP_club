@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ArrowLeft, Calendar, ChevronRight, Clock, Crown, Heart, MapPin, Share2, Sparkles, Users } from 'lucide-react-native';
+import { ArrowLeft, Calendar, ChevronRight, Clock, Crown, Heart, Hourglass, MapPin, Share2, Sparkles, Users } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Dimensions, Image, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -19,6 +19,7 @@ interface Member {
         id: string;
         fullName: string;
         email: string;
+        studentCode?: string;
     };
 }
 
@@ -33,6 +34,9 @@ export default function ClubDetail() {
     const [loadingMembers, setLoadingMembers] = useState(false);
     const [isUserMember, setIsUserMember] = useState(false);
     const [checkingMembership, setCheckingMembership] = useState(true);
+    const [checkingApplication, setCheckingApplication] = useState(true);
+    const [hasPendingApplication, setHasPendingApplication] = useState(false);
+    const [applicationStatus, setApplicationStatus] = useState<string | null>(null);
 
     useEffect(() => {
         if (id) {
@@ -52,8 +56,7 @@ export default function ClubDetail() {
 
             // Load members if user is a member
             if (isMember) {
-                // Feature removed from BE
-                // loadMembers(clubId);
+                loadMembers(clubId);
             }
         } catch (error) {
             setIsUserMember(false);
@@ -72,6 +75,7 @@ export default function ClubDetail() {
             if (data?.id) {
                 checkMembership(data.id);
                 loadEvents(data.id);
+                checkApplicationStatus(data.id);
             }
         } catch (error: any) {
             showError('Error', 'Could not load club details');
@@ -86,6 +90,30 @@ export default function ClubDetail() {
             setEvents(data);
         } catch (error) {
             console.log('Error loading events:', error);
+        }
+    };
+
+    const checkApplicationStatus = async (clubId: string) => {
+        try {
+            setCheckingApplication(true);
+            const { applications } = await clubService.getMyApplications(1, 50);
+            const pendingApp = applications.find(
+                (app: any) => app.clubId === clubId && app.status === 'PENDING'
+            );
+            if (pendingApp) {
+                setHasPendingApplication(true);
+                setApplicationStatus('PENDING');
+            } else {
+                // Check for rejected to allow re-apply
+                const rejectedApp = applications.find(
+                    (app: any) => app.clubId === clubId && app.status === 'REJECTED'
+                );
+                setApplicationStatus(rejectedApp ? 'REJECTED' : null);
+            }
+        } catch (error) {
+            console.log('Error checking application:', error);
+        } finally {
+            setCheckingApplication(false);
         }
     };
 
@@ -213,6 +241,51 @@ export default function ClubDetail() {
                         </Text>
                     </View>
 
+                    {/* Members Section - Only visible to club members */}
+                    {isUserMember && members.length > 0 && (
+                        <View className="mb-5">
+                            <View className="flex-row justify-between items-center mb-3">
+                                <Text className="text-text font-bold text-lg">Members ({members.length})</Text>
+                            </View>
+
+                            {loadingMembers ? (
+                                <View className="bg-card border border-border rounded-2xl p-4 items-center">
+                                    <ActivityIndicator size="small" color={COLORS.primary} />
+                                </View>
+                            ) : (
+                                <View className="bg-card border border-border rounded-2xl overflow-hidden">
+                                    {members.slice(0, 5).map((member, index) => {
+                                        const roleColor = getRoleBadgeColor(member.role);
+                                        return (
+                                            <View
+                                                key={member.id}
+                                                className={`flex-row items-center p-3 ${index < Math.min(members.length, 5) - 1 ? 'border-b border-border' : ''}`}
+                                            >
+                                                <View className="w-10 h-10 bg-primary-soft rounded-full items-center justify-center mr-3">
+                                                    <Text className="text-primary font-bold">
+                                                        {member.user?.fullName?.charAt(0) || '?'}
+                                                    </Text>
+                                                </View>
+                                                <View className="flex-1">
+                                                    <Text className="text-text font-semibold">{member.user?.fullName || 'Unknown'}</Text>
+                                                    <Text className="text-text-secondary text-xs">{member.user?.studentCode || member.user?.email}</Text>
+                                                </View>
+                                                <View className={`px-2 py-1 rounded-lg ${roleColor.bg}`}>
+                                                    <Text className={`text-xs font-bold ${roleColor.text}`}>{member.role}</Text>
+                                                </View>
+                                            </View>
+                                        );
+                                    })}
+                                    {members.length > 5 && (
+                                        <TouchableOpacity className="p-3 bg-background items-center">
+                                            <Text className="text-primary font-medium">View all {members.length} members</Text>
+                                        </TouchableOpacity>
+                                    )}
+                                </View>
+                            )}
+                        </View>
+                    )}
+
                     {/* Events - Show if there are events */}
                     {events.length > 0 && (
                         <View className="mb-5">
@@ -273,30 +346,52 @@ export default function ClubDetail() {
                 </View>
             </ScrollView>
 
-            {/* Bottom CTA - Show for non-members */}
-            {!isUserMember && !checkingMembership && club && (
+            {/* Bottom CTA - Show for non-members after all checks complete */}
+            {!isUserMember && !checkingMembership && !checkingApplication && club && (
                 <SafeAreaView
                     edges={['bottom']}
                     className="bg-card border-t border-border px-5 pt-4"
                     style={{ paddingBottom: 90 }}
                 >
-                    {fee > 0 && (
-                        <View className="flex-row justify-between items-center mb-3">
-                            <Text className="text-text-secondary">Membership Fee</Text>
-                            <Text className="text-primary text-xl font-bold">{fee.toLocaleString()}₫</Text>
+                    {hasPendingApplication ? (
+                        // Pending Application - Show waiting status
+                        <View className="bg-warning-soft border border-warning rounded-2xl p-4 items-center">
+                            <View className="flex-row items-center mb-2">
+                                <Clock size={24} color={COLORS.warning} />
+                                <Text className="text-warning font-bold text-lg ml-2">Application Pending</Text>
+                            </View>
+                            <Text className="text-text-secondary text-center">
+                                Your application is being reviewed. We'll notify you once there's an update.
+                            </Text>
+                            <TouchableOpacity
+                                className="mt-3 bg-warning/20 px-4 py-2 rounded-xl"
+                                onPress={() => router.push('/(student)/clubs/my-applications')}
+                            >
+                                <Text className="text-warning font-medium">View My Applications</Text>
+                            </TouchableOpacity>
                         </View>
+                    ) : (
+                        // No pending application - Show join button
+                        <>
+                            {fee > 0 && (
+                                <View className="flex-row justify-between items-center mb-3">
+                                    <Text className="text-text-secondary">Membership Fee</Text>
+                                    <Text className="text-primary text-xl font-bold">{fee.toLocaleString()}₫</Text>
+                                </View>
+                            )}
+                            <TouchableOpacity
+                                className="w-full bg-primary py-4 rounded-2xl items-center"
+                                onPress={() => router.push({
+                                    pathname: '/(student)/clubs/apply' as any,
+                                    params: { clubId: club.id, clubName: club.name, fee: String(fee) }
+                                })}
+                            >
+                                <Text className="text-white font-bold text-base">
+                                    {fee === 0 ? 'Join Club - Free' : 'Apply to Join'}
+                                </Text>
+                            </TouchableOpacity>
+                        </>
                     )}
-                    <TouchableOpacity
-                        className="w-full bg-primary py-4 rounded-2xl items-center"
-                        onPress={() => router.push({
-                            pathname: '/(student)/clubs/apply' as any,
-                            params: { clubId: club.id, clubName: club.name, fee: String(fee) }
-                        })}
-                    >
-                        <Text className="text-white font-bold text-base">
-                            {fee === 0 ? 'Join Club - Free' : 'Apply to Join'}
-                        </Text>
-                    </TouchableOpacity>
                 </SafeAreaView>
             )}
         </View>
