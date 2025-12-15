@@ -1,112 +1,214 @@
+import { Ionicons } from '@expo/vector-icons';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useRouter } from 'expo-router';
-import { CheckCircle, X, XCircle } from 'lucide-react-native';
-import { useState } from 'react';
-import { Text, TouchableOpacity, View } from 'react-native';
+import React, { useState } from 'react';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../../constants/theme';
+import { useToast } from '../../contexts/ToastContext';
 
 export default function ScannerScreen() {
-    const [scanned, setScanned] = useState(false);
-    const [result, setResult] = useState<null | 'VALID' | 'INVALID'>(null);
     const router = useRouter();
+    const { showSuccess, showError } = useToast();
+    const [permission, requestPermission] = useCameraPermissions();
+    const [scanned, setScanned] = useState(false);
 
-    const handleScan = () => {
+    if (!permission) {
+        // Camera permissions are still loading.
+        return <View style={styles.container} />;
+    }
+
+    if (!permission.granted) {
+        return (
+            <SafeAreaView style={styles.permissionContainer}>
+                <View style={styles.permissionContainer}>
+                    <Ionicons name="alert-circle-outline" size={64} color={COLORS.textSecondary} />
+                    <Text style={styles.message}>We need your permission to use the camera</Text>
+                    <TouchableOpacity style={styles.button} onPress={requestPermission}>
+                        <Text style={styles.buttonText}>Grant Permission</Text>
+                    </TouchableOpacity>
+                </View>
+            </SafeAreaView>
+        );
+    }
+
+    const handleBarCodeScanned = ({ type, data }: { type: string; data: string }) => {
         setScanned(true);
-        // Simulate scan result
-        const isValid = Math.random() > 0.2;
-        setResult(isValid ? 'VALID' : 'INVALID');
-    };
+        console.log(`Bar code with type ${type} and data ${data} has been scanned!`);
 
-    const resetScan = () => {
-        setScanned(false);
-        setResult(null);
+        // Simulation of verification since BE endpoint is missing
+        showSuccess('Scanned Successfully', `Code: ${data} `);
+
+        // TODO: Call API to verify ticket here when available
+        // eventService.verifyTicket(data)...
     };
 
     return (
-        <View className="flex-1 bg-text">
-            <SafeAreaView className="flex-1">
-                {/* Header */}
-                <View className="flex-row justify-between items-center px-5 py-4">
+        <View style={styles.container}>
+            <CameraView
+                style={StyleSheet.absoluteFillObject}
+                onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
+                barcodeScannerSettings={{
+                    barcodeTypes: ["qr"],
+                }}
+            />
+
+            <SafeAreaView style={styles.overlay}>
+                <View style={styles.header}>
                     <TouchableOpacity
                         onPress={() => router.back()}
-                        className="w-10 h-10 items-center justify-center bg-white/10 rounded-xl"
+                        style={styles.backButton}
                     >
-                        <X size={22} color="#FFF" />
+                        <Ionicons name="arrow-back" size={24} color="white" />
                     </TouchableOpacity>
-                    <Text className="text-white font-bold text-lg">Check-in Scanner</Text>
-                    <View className="w-10" />
+                    <Text style={styles.title}>Scan Ticket</Text>
+                    <View style={{ width: 40 }} />
                 </View>
 
-                {/* Scanner Area */}
-                <View className="flex-1 items-center justify-center px-8">
-                    {!scanned ? (
-                        <>
-                            {/* Scanner Frame */}
-                            <View className="w-64 h-64 border-2 border-white/50 rounded-3xl items-center justify-center relative overflow-hidden mb-8">
-                                {/* Scan line animation placeholder */}
-                                <View className="absolute top-0 left-0 w-full h-1 bg-primary" />
-
-                                {/* Corner decorations */}
-                                <View className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-primary rounded-tl-xl" />
-                                <View className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-primary rounded-tr-xl" />
-                                <View className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-primary rounded-bl-xl" />
-                                <View className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-primary rounded-br-xl" />
-
-                                <Text className="text-white/50 text-center px-6">
-                                    Align QR code within the frame
-                                </Text>
-                            </View>
-
-                            {/* Manual Scan Button */}
-                            <TouchableOpacity
-                                className="w-20 h-20 bg-primary rounded-full items-center justify-center shadow-lg"
-                                onPress={handleScan}
-                            >
-                                <View className="w-16 h-16 bg-white rounded-full border-4 border-primary" />
-                            </TouchableOpacity>
-                            <Text className="text-white/70 mt-4 font-medium">Tap to Simulate Scan</Text>
-                        </>
-                    ) : (
-                        /* Result Card */
-                        <View className="bg-card rounded-3xl p-8 items-center w-full max-w-sm">
-                            <View className={`w-20 h-20 rounded-full items-center justify-center mb-4 ${result === 'VALID' ? 'bg-success-soft' : 'bg-danger-soft'
-                                }`}>
-                                {result === 'VALID' ? (
-                                    <CheckCircle size={40} color={COLORS.success} />
-                                ) : (
-                                    <XCircle size={40} color={COLORS.error} />
-                                )}
-                            </View>
-                            <Text className={`text-2xl font-bold mb-2 ${result === 'VALID' ? 'text-success' : 'text-danger'
-                                }`}>
-                                {result === 'VALID' ? 'Access Granted' : 'Invalid Ticket'}
-                            </Text>
-                            <Text className="text-text-secondary text-center mb-6">
-                                {result === 'VALID'
-                                    ? 'Ticket verified successfully. Welcome!'
-                                    : 'This ticket is invalid or has already been used.'}
-                            </Text>
-                            <TouchableOpacity
-                                className="bg-text px-8 py-4 rounded-xl w-full items-center"
-                                onPress={resetScan}
-                            >
-                                <Text className="text-white font-bold">Scan Another</Text>
-                            </TouchableOpacity>
-                        </View>
-                    )}
+                <View style={styles.scanAreaContainer}>
+                    <View style={styles.scanArea}>
+                        <View style={[styles.corner, styles.topLeft]} />
+                        <View style={[styles.corner, styles.topRight]} />
+                        <View style={[styles.corner, styles.bottomLeft]} />
+                        <View style={[styles.corner, styles.bottomRight]} />
+                    </View>
+                    <Text style={styles.hintText}>Align QR code within the frame</Text>
                 </View>
 
-                {/* Bottom Info */}
-                {!scanned && (
-                    <View className="px-8 pb-8">
-                        <View className="bg-white/10 rounded-xl p-4">
-                            <Text className="text-white/80 text-center text-sm">
-                                Point your camera at the attendee's QR code to verify their ticket
-                            </Text>
-                        </View>
+                {scanned && (
+                    <View style={styles.footer}>
+                        <TouchableOpacity style={styles.rescanButton} onPress={() => setScanned(false)}>
+                            <Text style={styles.rescanText}>Tap to Scan Again</Text>
+                        </TouchableOpacity>
                     </View>
                 )}
             </SafeAreaView>
         </View>
     );
 }
+
+const styles = StyleSheet.create({
+    container: {
+        flex: 1,
+        backgroundColor: 'black',
+    },
+    permissionContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 20,
+        backgroundColor: COLORS.background,
+    },
+    message: {
+        textAlign: 'center',
+        marginVertical: 20,
+        fontSize: 16,
+        color: COLORS.text,
+        fontFamily: 'Inter-Regular',
+    },
+    button: {
+        backgroundColor: COLORS.primary,
+        paddingHorizontal: 20,
+        paddingVertical: 12,
+        borderRadius: 8,
+    },
+    buttonText: {
+        color: 'white',
+        fontWeight: 'bold',
+        fontSize: 16,
+    },
+    overlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'space-between',
+    },
+    header: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+    },
+    backButton: {
+        width: 40,
+        height: 40,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: 'rgba(0,0,0,0.3)',
+        borderRadius: 20,
+    },
+    title: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: 'white',
+    },
+    scanAreaContainer: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        flex: 1,
+    },
+    scanArea: {
+        width: 250,
+        height: 250,
+        borderRadius: 20,
+        backgroundColor: 'transparent',
+        position: 'relative',
+    },
+    corner: {
+        position: 'absolute',
+        width: 40,
+        height: 40,
+        borderColor: COLORS.primary,
+        borderWidth: 4,
+    },
+    topLeft: {
+        top: 0,
+        left: 0,
+        borderBottomWidth: 0,
+        borderRightWidth: 0,
+        borderTopLeftRadius: 20,
+    },
+    topRight: {
+        top: 0,
+        right: 0,
+        borderBottomWidth: 0,
+        borderLeftWidth: 0,
+        borderTopRightRadius: 20,
+    },
+    bottomLeft: {
+        bottom: 0,
+        left: 0,
+        borderTopWidth: 0,
+        borderRightWidth: 0,
+        borderBottomLeftRadius: 20,
+    },
+    bottomRight: {
+        bottom: 0,
+        right: 0,
+        borderTopWidth: 0,
+        borderLeftWidth: 0,
+        borderBottomRightRadius: 20,
+    },
+    hintText: {
+        color: 'white',
+        marginTop: 20,
+        fontSize: 14,
+        opacity: 0.8,
+    },
+    footer: {
+        padding: 20,
+        alignItems: 'center',
+    },
+    rescanButton: {
+        backgroundColor: COLORS.primary,
+        paddingVertical: 15,
+        paddingHorizontal: 30,
+        borderRadius: 30,
+    },
+    rescanText: {
+        color: 'white',
+        fontWeight: 'bold',
+        fontSize: 16,
+    }
+});
+

@@ -1,12 +1,24 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 
-// Use your Mac's IP address for device/simulator to connect to backend
-const DEV_API_URL = Platform.select({
-    android: 'http://10.0.2.2:5001/api',
-    ios: 'http://192.168.10.121:5001/api',
-    default: 'http://localhost:5001/api',
-});
+import Constants from 'expo-constants';
+
+const getBaseUrl = () => {
+    const debuggerHost = Constants.expoConfig?.hostUri;
+    const localhost = debuggerHost?.split(':')[0];
+
+    if (Platform.OS === 'android') {
+        return 'http://10.0.2.2:5001/api';
+    }
+
+    if (localhost) {
+        return `http://${localhost}:5001/api`;
+    }
+
+    return 'http://localhost:5001/api';
+};
+
+const DEV_API_URL = getBaseUrl();
 
 const API_BASE_URL = DEV_API_URL;
 const TOKEN_KEY = '@fpt_ucms_token';

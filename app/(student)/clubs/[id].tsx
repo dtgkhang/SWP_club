@@ -1,11 +1,12 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ArrowLeft, Crown, Heart, Share2, Sparkles, Users } from 'lucide-react-native';
+import { ArrowLeft, Calendar, ChevronRight, Clock, Crown, Heart, MapPin, Share2, Sparkles, Users } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Dimensions, Image, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../../../constants/theme';
 import { useToast } from '../../../contexts/ToastContext';
 import { authService } from '../../../services/auth.service';
+import { Event, eventService } from '../../../services/event.service';
 import { Club, clubService } from '../../../services/club.service';
 
 const { width } = Dimensions.get('window');
@@ -27,6 +28,7 @@ export default function ClubDetail() {
     const { showError, showSuccess } = useToast();
     const [club, setClub] = useState<Club | null>(null);
     const [members, setMembers] = useState<Member[]>([]);
+    const [events, setEvents] = useState<Event[]>([]);
     const [loading, setLoading] = useState(true);
     const [loadingMembers, setLoadingMembers] = useState(false);
     const [isUserMember, setIsUserMember] = useState(false);
@@ -68,11 +70,21 @@ export default function ClubDetail() {
             // Check membership using actual club.id (UUID)
             if (data?.id) {
                 checkMembership(data.id);
+                loadEvents(data.id);
             }
         } catch (error: any) {
             showError('Error', 'Could not load club details');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const loadEvents = async (clubId: string) => {
+        try {
+            const data = await eventService.getAllEvents({ clubId });
+            setEvents(data);
+        } catch (error) {
+            console.log('Error loading events:', error);
         }
     };
 
@@ -199,6 +211,62 @@ export default function ClubDetail() {
                             {club.description || 'Welcome to our club! We are a community dedicated to learning and growing together.'}
                         </Text>
                     </View>
+
+                    {/* Events - Show if there are events */}
+                    {events.length > 0 && (
+                        <View className="mb-5">
+                            <View className="flex-row justify-between items-center mb-3">
+                                <Text className="text-text font-bold text-lg">Upcoming Events ({events.length})</Text>
+                                <TouchableOpacity onPress={() => router.push({ pathname: '/(student)/home', params: { filter: 'ALL' } })}>
+                                    <Text className="text-primary font-medium text-sm">See All</Text>
+                                </TouchableOpacity>
+                            </View>
+
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                                {events.map((event) => (
+                                    <TouchableOpacity
+                                        key={event.id}
+                                        className="bg-card border border-border rounded-2xl mr-4 overflow-hidden"
+                                        style={{ width: 260 }}
+                                        onPress={() => router.push(`/(student)/events/${event.id}`)}
+                                        activeOpacity={0.7}
+                                    >
+                                        <Image
+                                            source={{ uri: event.club?.logoUrl || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=600' }}
+                                            className="w-full h-32"
+                                            resizeMode="cover"
+                                        />
+                                        <View className="p-3">
+                                            <View className="flex-row items-center mb-1">
+                                                <View className={`px-2 py-0.5 rounded mr-2 ${event.pricingType === 'FREE' ? 'bg-success-soft' : 'bg-primary-soft'}`}>
+                                                    <Text className={`text-xs font-bold ${event.pricingType === 'FREE' ? 'text-success' : 'text-primary'}`}>
+                                                        {event.pricingType === 'FREE' ? 'FREE' : `${(event.price ?? 0).toLocaleString()}₫`}
+                                                    </Text>
+                                                </View>
+                                                <Text className="text-text-secondary text-xs">{event.type}</Text>
+                                            </View>
+
+                                            <Text className="text-text font-bold text-base mb-1" numberOfLines={1}>{event.title}</Text>
+
+                                            <View className="flex-row items-center">
+                                                <Calendar size={12} color={COLORS.textSecondary} />
+                                                <Text className="text-text-secondary text-xs ml-1">
+                                                    {event.startTime
+                                                        ? new Date(event.startTime).toLocaleDateString('vi-VN', { day: 'numeric', month: 'short' })
+                                                        : 'TBD'}
+                                                </Text>
+                                                <View className="w-1 h-1 bg-border rounded-full mx-2" />
+                                                <MapPin size={12} color={COLORS.textSecondary} />
+                                                <Text className="text-text-secondary text-xs ml-1" numberOfLines={1}>
+                                                    {event.location || 'Online'}
+                                                </Text>
+                                            </View>
+                                        </View>
+                                    </TouchableOpacity>
+                                ))}
+                            </ScrollView>
+                        </View>
+                    )}
 
                     {/* Members List - Only for joined clubs */}
                     {isUserMember && (
