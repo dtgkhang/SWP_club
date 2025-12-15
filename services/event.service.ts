@@ -87,5 +87,10 @@ export const eventService = {
             body: JSON.stringify({ quantity, ticketType }),
         });
         return response.data;
+    },
+
+    async getMyTickets(): Promise<any[]> {
+        const response = await api<{ success: boolean; data: any[] }>('/tickets/my-tickets');
+        return response.data || [];
     }
 };

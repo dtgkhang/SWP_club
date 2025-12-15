@@ -1,10 +1,11 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ArrowLeft, Calendar, Crown, Heart, Share2, Sparkles, Users } from 'lucide-react-native';
+import { ArrowLeft, Crown, Heart, Share2, Sparkles, Users } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Dimensions, Image, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../../../constants/theme';
 import { useToast } from '../../../contexts/ToastContext';
+import { authService } from '../../../services/auth.service';
 import { Club, clubService } from '../../../services/club.service';
 
 const { width } = Dimensions.get('window');
@@ -21,18 +22,42 @@ interface Member {
 }
 
 export default function ClubDetail() {
-    const { id, isMember } = useLocalSearchParams();
+    const { id } = useLocalSearchParams();
     const router = useRouter();
     const { showError, showSuccess } = useToast();
     const [club, setClub] = useState<Club | null>(null);
     const [members, setMembers] = useState<Member[]>([]);
     const [loading, setLoading] = useState(true);
     const [loadingMembers, setLoadingMembers] = useState(false);
-    const isUserMember = isMember === 'true';
+    const [isUserMember, setIsUserMember] = useState(false);
+    const [checkingMembership, setCheckingMembership] = useState(true);
 
     useEffect(() => {
-        if (id) loadClubDetail();
+        if (id) {
+            loadClubDetail();
+        }
     }, [id]);
+
+    const checkMembership = async (clubId: string) => {
+        try {
+            setCheckingMembership(true);
+            const { user } = await authService.getProfile();
+            const userClubIds = (user?.memberships || [])
+                .filter((m: any) => m.status === 'ACTIVE')
+                .map((m: any) => m.clubId);
+            const isMember = userClubIds.includes(clubId);
+            setIsUserMember(isMember);
+
+            // Load members if user is a member
+            if (isMember) {
+                loadMembers(clubId);
+            }
+        } catch (error) {
+            setIsUserMember(false);
+        } finally {
+            setCheckingMembership(false);
+        }
+    };
 
     const loadClubDetail = async () => {
         try {
@@ -40,9 +65,9 @@ export default function ClubDetail() {
             const data = await clubService.getClubDetail(id as string);
             setClub(data);
 
-            // Load members if user is a member
-            if (isUserMember && data) {
-                loadMembers(data.id);
+            // Check membership using actual club.id (UUID)
+            if (data?.id) {
+                checkMembership(data.id);
             }
         } catch (error: any) {
             showError('Error', 'Could not load club details');
@@ -217,9 +242,13 @@ export default function ClubDetail() {
                 </View>
             </ScrollView>
 
-            {/* Bottom CTA - Only for non-members */}
-            {!isUserMember && (
-                <View className="absolute bottom-0 left-0 right-0 bg-card border-t border-border px-5 pt-4 pb-8">
+            {/* Bottom CTA - Show for non-members */}
+            {!isUserMember && !checkingMembership && club && (
+                <SafeAreaView
+                    edges={['bottom']}
+                    className="bg-card border-t border-border px-5 pt-4"
+                    style={{ paddingBottom: 90 }}
+                >
                     {fee > 0 && (
                         <View className="flex-row justify-between items-center mb-3">
                             <Text className="text-text-secondary">Membership Fee</Text>
@@ -229,15 +258,15 @@ export default function ClubDetail() {
                     <TouchableOpacity
                         className="w-full bg-primary py-4 rounded-2xl items-center"
                         onPress={() => router.push({
-                            pathname: '/(student)/clubs/apply',
-                            params: { clubId: club.id, clubName: club.name, fee }
+                            pathname: '/(student)/clubs/apply' as any,
+                            params: { clubId: club.id, clubName: club.name, fee: String(fee) }
                         })}
                     >
                         <Text className="text-white font-bold text-base">
                             {fee === 0 ? 'Join Club - Free' : 'Apply to Join'}
                         </Text>
                     </TouchableOpacity>
-                </View>
+                </SafeAreaView>
             )}
         </View>
     );

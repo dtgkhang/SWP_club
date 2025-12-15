@@ -1,4 +1,4 @@
-import api, { setAccessToken } from './api';
+import api, { setAccessToken, clearAccessToken, initializeToken } from './api';
 
 export interface User {
     id: string;
@@ -7,8 +7,8 @@ export interface User {
     studentCode?: string;
     phone?: string;
     avatarUrl?: string;
-    auth_role?: string; // BE returns auth_role (e.g., STUDENT, STAFF, ADMIN)
-    role?: string; // Alias for auth_role used in some contexts
+    auth_role?: string;
+    role?: string;
     isActive?: boolean;
     emailVerified?: boolean;
     memberships?: Array<{ clubId: string; role: string; status: string }>;
@@ -29,6 +29,12 @@ interface RegisterData {
 }
 
 export const authService = {
+    // Check if user is already logged in (token in storage)
+    async checkAuth(): Promise<boolean> {
+        const token = await initializeToken();
+        return !!token;
+    },
+
     async login(email: string, password: string): Promise<LoginResponse> {
         const response = await api<LoginResponse>('/users/login', {
             method: 'POST',
@@ -36,7 +42,7 @@ export const authService = {
         });
 
         if (response.accessToken) {
-            setAccessToken(response.accessToken);
+            await setAccessToken(response.accessToken);
         }
 
         return response;
@@ -53,7 +59,7 @@ export const authService = {
         return api<{ user: User }>('/users/getprofile');
     },
 
-    logout() {
-        setAccessToken(null);
+    async logout() {
+        await clearAccessToken();
     }
 };

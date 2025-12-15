@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { Eye, EyeOff, GraduationCap, Lock, Mail } from 'lucide-react-native';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useToast } from '../contexts/ToastContext';
@@ -13,6 +13,27 @@ export default function LoginScreen() {
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(false);
+    const [checkingAuth, setCheckingAuth] = useState(true);
+
+    // Check if user is already logged in
+    useEffect(() => {
+        checkExistingAuth();
+    }, []);
+
+    const checkExistingAuth = async () => {
+        try {
+            const isLoggedIn = await authService.checkAuth();
+            if (isLoggedIn) {
+                // Verify token is still valid by getting profile
+                await authService.getProfile();
+                router.replace('/(student)/home');
+            }
+        } catch (error) {
+            // Token expired or invalid, stay on login
+        } finally {
+            setCheckingAuth(false);
+        }
+    };
 
     const handleLogin = async () => {
         if (!email || !password) {
@@ -32,6 +53,17 @@ export default function LoginScreen() {
         }
     };
 
+    // Show loading while checking auth
+    if (checkingAuth) {
+        return (
+            <View className="flex-1 bg-primary justify-center items-center">
+                <GraduationCap size={60} color="#FFFFFF" />
+                <Text className="text-white text-xl font-bold mt-4">FPTU CLUB</Text>
+                <ActivityIndicator color="#FFF" style={{ marginTop: 20 }} />
+            </View>
+        );
+    }
+
     return (
         <View className="flex-1 bg-background">
             {/* Header with gradient-like effect */}
@@ -41,7 +73,7 @@ export default function LoginScreen() {
                         <View className="w-20 h-20 bg-white/20 rounded-2xl items-center justify-center mb-4 backdrop-blur">
                             <GraduationCap size={44} color="#FFFFFF" />
                         </View>
-                        <Text className="text-white text-2xl font-bold">FPT UCMS</Text>
+                        <Text className="text-white text-2xl font-bold">FPTU CLUB</Text>
                         <Text className="text-white/80 text-sm mt-1">University Club Management System</Text>
                     </View>
                 </SafeAreaView>
@@ -141,7 +173,7 @@ export default function LoginScreen() {
                     {/* Register Link */}
                     <View className="flex-row justify-center mt-6 mb-8">
                         <Text className="text-text-secondary">Don't have an account? </Text>
-                        <TouchableOpacity>
+                        <TouchableOpacity onPress={() => router.push('/register')}>
                             <Text className="text-primary font-bold">Register</Text>
                         </TouchableOpacity>
                     </View>

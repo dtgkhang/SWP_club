@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { ChevronRight, Search, Sparkles, Users } from 'lucide-react-native';
+import { ChevronRight, Clock, Search, Sparkles, Users } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Dimensions, Image, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -129,9 +129,17 @@ export default function ClubList() {
     return (
         <SafeAreaView className="flex-1 bg-background" edges={['top']}>
             {/* Header */}
-            <View className="px-5 pt-2 pb-4">
-                <Text className="text-text text-2xl font-bold mb-1">Clubs</Text>
-                <Text className="text-text-secondary text-sm">Discover and join student clubs</Text>
+            <View className="flex-row justify-between items-center px-5 pt-2 pb-4">
+                <View>
+                    <Text className="text-text text-2xl font-bold mb-1">Clubs</Text>
+                    <Text className="text-text-secondary text-sm">Discover and join student clubs</Text>
+                </View>
+                <TouchableOpacity
+                    className="w-10 h-10 bg-card rounded-xl items-center justify-center border border-border"
+                    onPress={() => router.push('/(student)/clubs/my-applications')}
+                >
+                    <Clock size={20} color={COLORS.text} />
+                </TouchableOpacity>
             </View>
 
             {/* Search Bar */}

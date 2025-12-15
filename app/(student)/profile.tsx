@@ -102,7 +102,7 @@ export default function ProfileScreen() {
 
                 {/* App Version */}
                 <Text className="text-center text-text-secondary text-xs mb-8">
-                    FPT UCMS v1.0.0
+                    FPTU CLUB v1.0.0
                 </Text>
             </ScrollView>
         </SafeAreaView>
