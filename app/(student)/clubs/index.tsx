@@ -13,15 +13,25 @@ export default function ClubList() {
     const [clubs, setClubs] = useState<Club[]>([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
+    const [debouncedSearch, setDebouncedSearch] = useState('');
 
+    // Debounce search query
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedSearch(search);
+        }, 500);
+        return () => clearTimeout(timer);
+    }, [search]);
+
+    // Reload clubs when search changes
     useEffect(() => {
         loadClubs();
-    }, []);
+    }, [debouncedSearch]);
 
     const loadClubs = async () => {
         try {
             setLoading(true);
-            const result = await clubService.getAllClubs();
+            const result = await clubService.getAllClubs(1, 20, debouncedSearch || undefined);
             setClubs(result.clubs || []);
         } catch (error) {
             console.error('API Error:', error);
@@ -30,7 +40,6 @@ export default function ClubList() {
         }
     };
 
-    const filteredClubs = clubs.filter(c => c.name.toLowerCase().includes(search.toLowerCase()));
 
     // Featured Club Card (Large)
     const FeaturedClubCard = ({ club }: { club: Club }) => (
@@ -157,7 +166,7 @@ export default function ClubList() {
                 </View>
 
                 {/* Featured Clubs - Horizontal Scroll */}
-                {!loading && filteredClubs.length > 0 && (
+                {!loading && clubs.length > 0 && (
                     <View className="mb-6">
                         <View className="flex-row justify-between items-center px-5 mb-3">
                             <Text className="text-text font-bold text-lg">🌟 Popular Clubs</Text>
@@ -167,7 +176,7 @@ export default function ClubList() {
                             showsHorizontalScrollIndicator={false}
                             contentContainerStyle={{ paddingLeft: 20, paddingRight: 10 }}
                         >
-                            {filteredClubs.slice(0, 3).map(club => (
+                            {clubs.slice(0, 3).map((club: Club) => (
                                 <FeaturedClubCard key={club.id} club={club} />
                             ))}
                         </ScrollView>
@@ -182,8 +191,8 @@ export default function ClubList() {
                         <View className="py-10">
                             <ActivityIndicator size="large" color={COLORS.primary} />
                         </View>
-                    ) : filteredClubs.length > 0 ? (
-                        filteredClubs.map(club => (
+                    ) : clubs.length > 0 ? (
+                        clubs.map((club: Club) => (
                             <ClubCard key={club.id} club={club} />
                         ))
                     ) : (

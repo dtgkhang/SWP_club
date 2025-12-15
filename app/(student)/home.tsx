@@ -18,18 +18,24 @@ export default function StudentHome() {
     const [events, setEvents] = useState<Event[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
+    const [debouncedSearch, setDebouncedSearch] = useState('');
 
     useEffect(() => {
-        loadData();
+        loadProfile();
     }, []);
 
+    // Debounce search query
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedSearch(searchQuery);
+        }, 500);
+        return () => clearTimeout(timer);
+    }, [searchQuery]);
+
+    // Reload events when filter or search changes
     useEffect(() => {
         loadEvents();
-    }, [filter]);
-
-    const loadData = async () => {
-        await Promise.all([loadProfile(), loadEvents()]);
-    };
+    }, [filter, debouncedSearch]);
 
     const loadProfile = async () => {
         try {
@@ -44,7 +50,10 @@ export default function StudentHome() {
         try {
             setLoading(true);
             const typeFilter = filter === 'ALL' ? undefined : filter;
-            const data = await eventService.getAllEvents({ type: typeFilter });
+            const data = await eventService.getAllEvents({
+                type: typeFilter,
+                search: debouncedSearch || undefined
+            });
             setEvents(data);
         } catch (error) {
             console.error('Error fetching events:', error);
@@ -52,10 +61,6 @@ export default function StudentHome() {
             setLoading(false);
         }
     };
-
-    const filteredEvents = events.filter(e =>
-        e.title.toLowerCase().includes(searchQuery.toLowerCase())
-    );
 
     // Featured Event Card (First event)
     const FeaturedEventCard = ({ event }: { event: Event }) => (
@@ -229,12 +234,12 @@ export default function StudentHome() {
                 </View>
 
                 {/* Featured Section */}
-                {filteredEvents.length > 0 && (
+                {events.length > 0 && (
                     <View className="px-5 mb-2">
                         <View className="flex-row justify-between items-center mb-4">
                             <Text className="text-text text-lg font-bold">🔥 Featured Event</Text>
                         </View>
-                        <FeaturedEventCard event={filteredEvents[0]} />
+                        <FeaturedEventCard event={events[0]} />
                     </View>
                 )}
 
@@ -263,11 +268,11 @@ export default function StudentHome() {
                         <View className="py-10">
                             <ActivityIndicator size="large" color={COLORS.primary} />
                         </View>
-                    ) : filteredEvents.length > 1 ? (
-                        filteredEvents.slice(1).map(event => (
+                    ) : events.length > 1 ? (
+                        events.slice(1).map((event: Event) => (
                             <EventCard key={event.id} event={event} />
                         ))
-                    ) : filteredEvents.length === 0 ? (
+                    ) : events.length === 0 ? (
                         <View className="items-center justify-center py-16">
                             <Text className="text-6xl mb-4">📭</Text>
                             <Text className="text-text font-bold text-lg">No events found</Text>

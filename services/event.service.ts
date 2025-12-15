@@ -64,11 +64,12 @@ interface RegisterEventResponse {
 }
 
 export const eventService = {
-    async getAllEvents(filters?: { clubId?: string; type?: string; pricingType?: string }): Promise<Event[]> {
+    async getAllEvents(filters?: { clubId?: string; type?: string; pricingType?: string; search?: string }): Promise<Event[]> {
         const params = new URLSearchParams();
         if (filters?.clubId) params.append('clubId', filters.clubId);
         if (filters?.type) params.append('type', filters.type);
         if (filters?.pricingType) params.append('pricingType', filters.pricingType);
+        if (filters?.search) params.append('search', filters.search);
 
         const queryString = params.toString();
         const response = await api<EventListResponse>(`/events${queryString ? `?${queryString}` : ''}`);
