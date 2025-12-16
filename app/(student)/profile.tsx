@@ -68,6 +68,25 @@ export default function ProfileScreen() {
                     <Text className="text-text text-2xl font-bold">Profile</Text>
                 </View>
 
+                {/* Leader Mode Banner - Only show if user has leader role */}
+                {(user?.memberships || []).some((m: any) => m.role === 'LEADER' && m.status === 'ACTIVE') && (
+                    <TouchableOpacity
+                        className="mx-5 mb-3 rounded-2xl p-4 flex-row items-center"
+                        style={{ backgroundColor: '#7C3AED' }}
+                        onPress={() => router.push('/(leader)/dashboard')}
+                        activeOpacity={0.8}
+                    >
+                        <View className="w-12 h-12 bg-white/20 rounded-xl items-center justify-center mr-4">
+                            <Shield size={24} color="#FFF" />
+                        </View>
+                        <View className="flex-1">
+                            <Text className="text-white font-bold text-base">Leader Mode</Text>
+                            <Text className="text-white/80 text-sm">Manage club & approve members</Text>
+                        </View>
+                        <ChevronRight size={22} color="#FFF" />
+                    </TouchableOpacity>
+                )}
+
                 {/* Staff Mode Banner - Only show if user has staff role */}
                 {hasStaffRole && (
                     <TouchableOpacity

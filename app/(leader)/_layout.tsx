@@ -1,28 +1,38 @@
 import { Tabs, useRouter } from 'expo-router';
-import { Home, Ticket, User, Users } from 'lucide-react-native';
+import { FileText, Home, Users } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
-import { Platform, StyleSheet, Text, View } from 'react-native';
-import { COLORS } from '../../constants/theme';
+import { Platform, StyleSheet, View } from 'react-native';
 import { authService } from '../../services/auth.service';
 
-export default function StudentLayout() {
+export default function LeaderLayout() {
     const router = useRouter();
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        checkAuth();
+        checkLeaderAccess();
     }, []);
 
-    const checkAuth = async () => {
+    const checkLeaderAccess = async () => {
         try {
             const isAuthenticated = await authService.checkAuth();
             if (!isAuthenticated) {
                 router.replace('/');
                 return;
             }
+
+            const { user } = await authService.getProfile();
+            const hasLeaderRole = user?.memberships?.some(
+                (m: any) => m.role === 'LEADER' && m.status === 'ACTIVE'
+            );
+
+            if (!hasLeaderRole) {
+                router.replace('/(student)/profile');
+                return;
+            }
+
             setIsLoading(false);
         } catch (error) {
-            console.log('Auth check failed:', error);
+            console.log('Leader access check failed:', error);
             router.replace('/');
         }
     };
@@ -35,7 +45,7 @@ export default function StudentLayout() {
         <Tabs
             screenOptions={{
                 headerShown: false,
-                tabBarActiveTintColor: COLORS.primary,
+                tabBarActiveTintColor: '#7C3AED',
                 tabBarInactiveTintColor: '#94A3B8',
                 tabBarStyle: {
                     position: 'absolute',
@@ -57,9 +67,9 @@ export default function StudentLayout() {
             }}
         >
             <Tabs.Screen
-                name="home"
+                name="dashboard"
                 options={{
-                    title: 'Home',
+                    title: 'Dashboard',
                     tabBarIcon: ({ color, focused }) => (
                         <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
                             <Home size={22} color={color} strokeWidth={focused ? 2.5 : 2} />
@@ -68,58 +78,25 @@ export default function StudentLayout() {
                 }}
             />
             <Tabs.Screen
-                name="clubs"
+                name="applications"
                 options={{
-                    title: 'Clubs',
+                    title: 'Applications',
+                    tabBarIcon: ({ color, focused }) => (
+                        <View style={[styles.centerIcon, focused && styles.centerIconActive]}>
+                            <FileText size={24} color={focused ? '#FFFFFF' : color} strokeWidth={2} />
+                        </View>
+                    ),
+                }}
+            />
+            <Tabs.Screen
+                name="members"
+                options={{
+                    title: 'Members',
                     tabBarIcon: ({ color, focused }) => (
                         <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
                             <Users size={22} color={color} strokeWidth={focused ? 2.5 : 2} />
                         </View>
                     ),
-                }}
-            />
-            <Tabs.Screen
-                name="wallet"
-                options={{
-                    title: 'Tickets',
-                    tabBarIcon: ({ color, focused }) => (
-                        <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
-                            <Ticket size={22} color={color} strokeWidth={focused ? 2.5 : 2} />
-                        </View>
-                    ),
-                }}
-            />
-            <Tabs.Screen
-                name="profile"
-                options={{
-                    title: 'Profile',
-                    tabBarIcon: ({ color, focused }) => (
-                        <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
-                            <User size={22} color={color} strokeWidth={focused ? 2.5 : 2} />
-                        </View>
-                    ),
-                }}
-            />
-            {/* Hidden screens */}
-            <Tabs.Screen
-                name="events/[id]"
-                options={{
-                    href: null,
-                    tabBarStyle: { display: 'none' },
-                }}
-            />
-            <Tabs.Screen
-                name="payment"
-                options={{
-                    href: null,
-                    tabBarStyle: { display: 'none' },
-                }}
-            />
-            <Tabs.Screen
-                name="edit-profile"
-                options={{
-                    href: null,
-                    tabBarStyle: { display: 'none' },
                 }}
             />
         </Tabs>
@@ -135,6 +112,18 @@ const styles = StyleSheet.create({
         borderRadius: 8,
     },
     iconWrapActive: {
-        backgroundColor: '#FFF7ED', // Orange soft
+        backgroundColor: '#EDE9FE', // Purple soft
+    },
+    centerIcon: {
+        width: 48,
+        height: 48,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: 24,
+        backgroundColor: '#E5E7EB',
+        marginBottom: 10,
+    },
+    centerIconActive: {
+        backgroundColor: '#7C3AED', // Purple
     },
 });
