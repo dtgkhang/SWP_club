@@ -83,5 +83,51 @@ export const clubService = {
             applications: response.data || [],
             pagination: response.pagination
         };
+    },
+
+    async getMembershipPayment(clubId: string): Promise<{
+        paymentLink?: string;
+        qrCode?: string;
+        transactionId?: string;
+        amount?: number;
+        orderCode?: number;
+    }> {
+        // Use existing transactions/create-payment API with type MEMBERSHIP
+        const response = await api<{
+            success: boolean;
+            data: {
+                paymentLink?: string;
+                qrCode?: string;
+                transactionId?: string;
+                id?: string; // API might return id instead of transactionId
+                amount?: number;
+                orderCode?: number;
+            };
+        }>(`/transactions/create-payment`, {
+            method: 'POST',
+            body: JSON.stringify({
+                type: 'MEMBERSHIP',
+                clubId: clubId
+            }),
+        });
+        const data = response.data || {};
+        return {
+            ...data,
+            transactionId: data.transactionId || data.id
+        };
+    },
+
+    async checkMembershipPaymentStatus(transactionId: string): Promise<{
+        status: string;
+        membership?: any;
+    }> {
+        const response = await api<{
+            success: boolean;
+            data: {
+                status: string;
+                membership?: any;
+            };
+        }>(`/transactions/${transactionId}`);
+        return response.data || { status: 'PENDING' };
     }
 };

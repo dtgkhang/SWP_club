@@ -1,7 +1,7 @@
 import { useRouter } from 'expo-router';
-import { ArrowLeft, Clock, Search } from 'lucide-react-native';
+import { ArrowLeft, Clock, CreditCard, Search } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Image, RefreshControl, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, FlatList, Image, Linking, RefreshControl, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../../../constants/theme';
 import { useToast } from '../../../contexts/ToastContext';
@@ -9,7 +9,7 @@ import { clubService } from '../../../services/club.service';
 
 export default function MyApplicationsScreen() {
     const router = useRouter();
-    const { showError } = useToast();
+    const { showError, showInfo } = useToast();
     const [applications, setApplications] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -40,46 +40,86 @@ export default function MyApplicationsScreen() {
         loadApplications();
     };
 
-    const getStatusColor = (status: string) => {
+    const handlePayNow = async (app: any) => {
+        // Navigate to club membership payment screen
+        router.push({
+            pathname: '/(student)/clubs/membership-payment' as any,
+            params: {
+                applicationId: app.id,
+                clubId: app.clubId,
+                clubName: app.club?.name || 'Club',
+                amount: app.club?.membershipFeeAmount?.toString() || '0'
+            }
+        });
+    };
+
+    const getStatusDisplay = (app: any) => {
+        const status = app.status;
+        const hasFee = app.club?.membershipFeeAmount > 0;
+
+        if (status === 'APPROVED' && hasFee) {
+            // Check if user's membership is pending payment
+            return {
+                text: 'Pay Required',
+                color: 'text-warning',
+                bg: 'bg-warning/10',
+                showPayButton: true
+            };
+        }
+
         switch (status) {
-            case 'APPROVED': return 'text-success';
-            case 'REJECTED': return 'text-danger';
-            case 'PENDING': return 'text-warning';
-            default: return 'text-text-secondary';
+            case 'APPROVED': return { text: 'Approved', color: 'text-success', bg: 'bg-success/10', showPayButton: false };
+            case 'REJECTED': return { text: 'Rejected', color: 'text-danger', bg: 'bg-danger/10', showPayButton: false };
+            case 'PENDING': return { text: 'Pending', color: 'text-warning', bg: 'bg-warning/10', showPayButton: false };
+            default: return { text: status, color: 'text-text-secondary', bg: 'bg-gray-100', showPayButton: false };
         }
     };
 
-    const getStatusBg = (status: string) => {
-        switch (status) {
-            case 'APPROVED': return 'bg-success/10';
-            case 'REJECTED': return 'bg-danger/10';
-            case 'PENDING': return 'bg-warning/10';
-            default: return 'bg-gray-100';
-        }
-    };
+    const renderItem = ({ item }: { item: any }) => {
+        const statusInfo = getStatusDisplay(item);
+        const feeAmount = item.club?.membershipFeeAmount || 0;
 
-    const renderItem = ({ item }: { item: any }) => (
-        <TouchableOpacity
-            className="bg-card rounded-2xl p-4 mb-4 border border-border shadow-sm flex-row items-center"
-            onPress={() => router.push({ pathname: '/(student)/clubs/[id]', params: { id: item.club?.slug || item.clubId } })}
-        >
-            <Image
-                source={{ uri: item.club?.logoUrl || 'https://via.placeholder.com/60' }}
-                className="w-14 h-14 rounded-xl bg-gray-100"
-            />
-            <View className="flex-1 ml-4">
-                <Text className="text-text font-bold text-base mb-1">{item.club?.name || 'Unknown Club'}</Text>
-                <Text className="text-text-secondary text-xs">
-                    Applied on: {new Date(item.createdAt).toLocaleDateString()}
-                </Text>
+        return (
+            <View className="bg-card rounded-2xl p-4 mb-4 border border-border shadow-sm">
+                <TouchableOpacity
+                    className="flex-row items-center"
+                    onPress={() => router.push({ pathname: '/(student)/clubs/[id]', params: { id: item.club?.slug || item.clubId } })}
+                >
+                    <Image
+                        source={{ uri: item.club?.logoUrl || 'https://via.placeholder.com/60' }}
+                        className="w-14 h-14 rounded-xl bg-gray-100"
+                    />
+                    <View className="flex-1 ml-4">
+                        <Text className="text-text font-bold text-base mb-1">{item.club?.name || 'Unknown Club'}</Text>
+                        <Text className="text-text-secondary text-xs">
+                            Applied on: {new Date(item.createdAt).toLocaleDateString()}
+                        </Text>
+                        {feeAmount > 0 && (
+                            <Text className="text-primary text-xs font-medium mt-1">
+                                Fee: {feeAmount.toLocaleString()}₫
+                            </Text>
+                        )}
+                    </View>
+                    <View className={`px-3 py-1.5 rounded-lg ${statusInfo.bg}`}>
+                        <Text className={`text-xs font-bold ${statusInfo.color}`}>
+                            {statusInfo.text}
+                        </Text>
+                    </View>
+                </TouchableOpacity>
+
+                {/* Pay Now Button for approved apps with pending payment */}
+                {statusInfo.showPayButton && (
+                    <TouchableOpacity
+                        className="mt-4 bg-primary py-3 rounded-xl flex-row items-center justify-center"
+                        onPress={() => handlePayNow(item)}
+                    >
+                        <CreditCard size={18} color="#FFF" />
+                        <Text className="text-white font-bold ml-2">Pay Now - {feeAmount.toLocaleString()}₫</Text>
+                    </TouchableOpacity>
+                )}
             </View>
-            <View className={`px-3 py-1.5 rounded-lg ${getStatusBg(item.status)}`}>
-                <Text className={`text-xs font-bold capitalize ${getStatusColor(item.status)}`}>
-                    {item.status.toLowerCase()}
-                </Text>
-            </View>
-        </TouchableOpacity>
-    );
+        );
+    };
 
     const filteredApps = applications.filter(app =>
         app.club?.name?.toLowerCase().includes(searchQuery.toLowerCase())

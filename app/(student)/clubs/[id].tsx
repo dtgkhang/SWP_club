@@ -199,7 +199,7 @@ export default function ClubDetail() {
             <ScrollView
                 className="flex-1 -mt-6 bg-background rounded-t-3xl"
                 showsVerticalScrollIndicator={false}
-                contentContainerStyle={{ paddingBottom: isUserMember ? 30 : 140 }}
+                contentContainerStyle={{ paddingBottom: isUserMember ? 100 : 180 }}
             >
                 <View className="px-5 pt-6">
                     {/* Club Info */}

@@ -1,12 +1,14 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowLeft, CheckCircle, ExternalLink, RefreshCw, XCircle } from 'lucide-react-native';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, AppState, Linking, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, AppState, Image, Linking, Text, TouchableOpacity, View, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../../constants/theme';
 import { useToast } from '../../contexts/ToastContext';
 import { eventService } from '../../services/event.service';
 import { transactionService } from '../../services/transaction.service';
+
+const { width } = Dimensions.get('window');
 
 export default function PaymentScreen() {
     const { eventId, eventTitle, amount, isFree } = useLocalSearchParams();
@@ -17,6 +19,7 @@ export default function PaymentScreen() {
     const [errorMessage, setErrorMessage] = useState('');
     const [transactionId, setTransactionId] = useState<string | null>(null);
     const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
+    const [paymentQrCode, setPaymentQrCode] = useState<string | null>(null);
     const pollingInterval = useRef<any>(null);
 
     useEffect(() => {
@@ -96,25 +99,30 @@ export default function PaymentScreen() {
             setStatus('PROCESSING');
             const result = await eventService.registerEvent(eventId as string, 1);
 
+            console.log('Registration result:', JSON.stringify(result, null, 2));
+
             if (result.type === 'PAID' && result.paymentLink) {
                 setPaymentUrl(result.paymentLink);
-                // The current BE implementation might return transactionId inside 'data' or top level? 
-                // Based on `EventsController.js`, usage `data: { ... transactionId ... }`
                 setTransactionId(result.transactionId as string);
 
-                showInfo('Payment Link', 'Opening payment page...');
-                await Linking.openURL(result.paymentLink);
-
+                // Check if qrCode is returned (base64 data URL)
+                console.log('QR Code received:', result.qrCode ? 'YES (length: ' + result.qrCode.length + ')' : 'NO');
+                if (result.qrCode) {
+                    setPaymentQrCode(result.qrCode);
+                    showInfo('Scan QR', 'Scan the QR code with your banking app to pay');
+                } else {
+                    // Fallback to opening browser if no QR code
+                    showInfo('Payment Link', 'Opening payment page...');
+                    await Linking.openURL(result.paymentLink);
+                }
                 // Stay on PROCESSING state to poll
             } else if (result.tickets) {
-                // Should not happen for paid events usually, unless price is 0
                 setTickets(result.tickets);
                 setStatus('SUCCESS');
                 showSuccess('Registration Complete!', 'Your ticket has been added');
             }
         } catch (error: any) {
             const msg = error.message || 'Registration failed';
-            // Check if already registered
             if (msg.includes('đã đăng ký') || msg.includes('already registered')) {
                 showInfo('Already Registered', 'You have already registered for this event!');
                 router.replace('/(student)/wallet');
@@ -192,30 +200,84 @@ export default function PaymentScreen() {
         );
     }
 
-    // Processing State (Paid - Polling)
+    // Processing State (Paid - Polling with QR Code)
     if (status === 'PROCESSING' && transactionId) {
+        const qrSize = width - 120;
         return (
-            <SafeAreaView className="flex-1 bg-background justify-center items-center p-6">
-                <ActivityIndicator size="large" color={COLORS.primary} className="mb-6" />
-                <Text className="text-text text-xl font-bold mb-2">Waiting for Payment</Text>
-                <Text className="text-text-secondary text-center mb-8 px-4">
-                    Please complete the payment in the browser window. We are checking your payment status automatically.
-                </Text>
+            <SafeAreaView className="flex-1 bg-background">
+                {/* Header */}
+                <View className="flex-row items-center px-5 py-4 bg-card border-b border-border">
+                    <TouchableOpacity onPress={() => router.back()} className="mr-4">
+                        <ArrowLeft size={24} color={COLORS.text} />
+                    </TouchableOpacity>
+                    <Text className="text-text text-lg font-bold">Payment</Text>
+                </View>
 
-                <TouchableOpacity
-                    className="bg-card border border-border px-6 py-3 rounded-xl flex-row items-center mb-4"
-                    onPress={checkPaymentStatus}
-                >
-                    <RefreshCw size={20} color={COLORS.primary} />
-                    <Text className="text-primary font-bold ml-2">Check Status Now</Text>
-                </TouchableOpacity>
+                <View className="flex-1 items-center justify-center p-6">
+                    {paymentQrCode ? (
+                        <>
+                            {/* Event & Amount */}
+                            <Text className="text-text-secondary text-sm mb-1">Pay for Event</Text>
+                            <Text className="text-text font-bold text-lg mb-2 text-center">{eventTitle}</Text>
+                            <View className="bg-primary-soft rounded-xl px-6 py-3 mb-6">
+                                <Text className="text-primary text-2xl font-bold">
+                                    {Number(amount).toLocaleString()}₫
+                                </Text>
+                            </View>
 
-                <TouchableOpacity
-                    className="p-4"
-                    onPress={handleOpenBrowserAgain}
-                >
-                    <Text className="text-primary font-medium">Re-open Payment Page</Text>
-                </TouchableOpacity>
+                            {/* QR Code */}
+                            <View className="bg-white p-4 rounded-2xl shadow-lg mb-6">
+                                <Image
+                                    source={{ uri: paymentQrCode }}
+                                    style={{ width: qrSize, height: qrSize }}
+                                    resizeMode="contain"
+                                />
+                            </View>
+
+                            <Text className="text-text-secondary text-center mb-4 px-4">
+                                Scan this QR code with your banking app to pay
+                            </Text>
+
+                            {/* Status */}
+                            <View className="flex-row items-center bg-warning-soft px-4 py-2 rounded-xl mb-4">
+                                <ActivityIndicator size="small" color={COLORS.warning} />
+                                <Text className="text-warning font-medium ml-2">Checking payment status...</Text>
+                            </View>
+
+                            <TouchableOpacity
+                                className="bg-card border border-border px-6 py-3 rounded-xl flex-row items-center"
+                                onPress={checkPaymentStatus}
+                            >
+                                <RefreshCw size={18} color={COLORS.primary} />
+                                <Text className="text-primary font-bold ml-2">Check Status Now</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity className="p-4 mt-2" onPress={handleOpenBrowserAgain}>
+                                <Text className="text-text-secondary text-sm">Or pay via browser →</Text>
+                            </TouchableOpacity>
+                        </>
+                    ) : (
+                        <>
+                            <ActivityIndicator size="large" color={COLORS.primary} className="mb-6" />
+                            <Text className="text-text text-xl font-bold mb-2">Waiting for Payment</Text>
+                            <Text className="text-text-secondary text-center mb-8 px-4">
+                                Please complete the payment in the browser window.
+                            </Text>
+
+                            <TouchableOpacity
+                                className="bg-card border border-border px-6 py-3 rounded-xl flex-row items-center mb-4"
+                                onPress={checkPaymentStatus}
+                            >
+                                <RefreshCw size={20} color={COLORS.primary} />
+                                <Text className="text-primary font-bold ml-2">Check Status Now</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity className="p-4" onPress={handleOpenBrowserAgain}>
+                                <Text className="text-primary font-medium">Re-open Payment Page</Text>
+                            </TouchableOpacity>
+                        </>
+                    )}
+                </View>
             </SafeAreaView>
         );
     }

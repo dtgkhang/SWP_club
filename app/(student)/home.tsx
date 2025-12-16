@@ -1,7 +1,7 @@
 
 import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
-import { Bell, Calendar, ChevronRight, MapPin, Search, Sparkles, Users } from 'lucide-react-native';
+import { Bell, Calendar, ChevronRight, MapPin, Search, Sparkles, Users, Video } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, DimensionValue, Dimensions, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -128,18 +128,43 @@ export default function StudentHome() {
             // For PUBLIC/ALL, use BE filter
             const typeFilter = filter === 'ALL' || filter === 'MY_CLUBS' ? undefined : filter;
 
+            // Load all events without search param - filter on frontend
             const data = await eventService.getAllEvents({
-                type: typeFilter,
-                search: debouncedSearch || undefined
+                type: typeFilter
             });
+
+            // Filter out events that have already ended
+            const now = new Date();
+            const availableEvents = data.filter((event: any) => {
+                // If event has ended, hide it
+                if (event.endTime) {
+                    const endTime = new Date(event.endTime);
+                    if (endTime < now) return false;
+                }
+                return true;
+            });
+
+            // Client-side search filter
+            const searchFilter = (events: Event[]) => {
+                if (!debouncedSearch.trim()) return events;
+                const query = debouncedSearch.toLowerCase();
+                return events.filter(e =>
+                    e.title?.toLowerCase().includes(query) ||
+                    e.description?.toLowerCase().includes(query) ||
+                    e.location?.toLowerCase().includes(query) ||
+                    e.club?.name?.toLowerCase().includes(query)
+                );
+            };
+
+            const searchedEvents = searchFilter(availableEvents);
 
             // Client-side filter for MY_CLUBS
             if (filter === 'MY_CLUBS') {
                 const userClubIds = getUserClubIds();
-                const filtered = data.filter(e => userClubIds.includes(e.clubId));
+                const filtered = searchedEvents.filter(e => userClubIds.includes(e.clubId));
                 setEvents(filtered);
             } else {
-                setEvents(data);
+                setEvents(searchedEvents);
             }
         } catch (error: any) {
             showError('Loading Failed', 'Could not load events. Please try again.');
@@ -162,21 +187,31 @@ export default function StudentHome() {
                     contentFit="cover"
                     transition={500}
                 />
-                <View className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                <View className="absolute inset-0 bg-black/50" />
 
                 {/* Content Overlay */}
-                <View className="absolute bottom-0 left-0 right-0 p-5">
+                <View className="absolute bottom-0 left-0 right-0 p-5 bg-gradient-to-t from-black/90 via-black/60 to-transparent">
                     <View className="flex-row items-center mb-2">
                         <View className="bg-primary px-3 py-1 rounded-full mr-2">
                             <Text className="text-white text-xs font-bold">
                                 {event.pricingType === 'FREE' ? 'FREE' : `${(event.price ?? 0).toLocaleString()}₫`}
                             </Text>
                         </View>
-                        <View className="bg-white/20 px-3 py-1 rounded-full">
+                        {event.format === 'ONLINE' && (
+                            <View className="bg-purple-500 px-3 py-1 rounded-full mr-2">
+                                <Text className="text-white text-xs font-bold">ONLINE</Text>
+                            </View>
+                        )}
+                        <View className="bg-white/30 px-3 py-1 rounded-full">
                             <Text className="text-white text-xs font-medium">{event.type}</Text>
                         </View>
                     </View>
-                    <Text className="text-white text-xl font-bold mb-2">{event.title}</Text>
+                    <Text
+                        className="text-white text-xl font-bold mb-2"
+                        style={{ textShadowColor: 'rgba(0,0,0,0.75)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 }}
+                    >
+                        {event.title}
+                    </Text>
                     <View className="flex-row items-center">
                         <Calendar size={14} color="#FFF" />
                         <Text className="text-white/80 text-sm ml-2">
@@ -185,8 +220,17 @@ export default function StudentHome() {
                                 : 'Coming soon'}
                         </Text>
                         <View className="w-1 h-1 bg-white/50 rounded-full mx-3" />
-                        <MapPin size={14} color="#FFF" />
-                        <Text className="text-white/80 text-sm ml-2">{event.location || 'TBD'}</Text>
+                        {event.format === 'ONLINE' ? (
+                            <>
+                                <Video size={14} color="#FFF" />
+                                <Text className="text-white/80 text-sm ml-2">Online Event</Text>
+                            </>
+                        ) : (
+                            <>
+                                <MapPin size={14} color="#FFF" />
+                                <Text className="text-white/80 text-sm ml-2">{event.location || 'TBD'}</Text>
+                            </>
+                        )}
                     </View>
                 </View>
             </View>
@@ -214,12 +258,17 @@ export default function StudentHome() {
                 <View className="flex-1 p-3 justify-between" style={{ minWidth: 0 }}>
                     {/* Top Section */}
                     <View style={{ minWidth: 0 }}>
-                        <View className="flex-row items-center mb-1.5">
+                        <View className="flex-row items-center mb-1.5 flex-wrap">
                             <View className={`px-2 py-0.5 rounded-md ${event.pricingType === 'FREE' ? 'bg-success-soft' : 'bg-primary-soft'}`}>
                                 <Text className={`text-xs font-bold ${event.pricingType === 'FREE' ? 'text-success' : 'text-primary'}`}>
                                     {event.pricingType === 'FREE' ? 'FREE' : `${(event.price ?? 0).toLocaleString()}₫`}
                                 </Text>
                             </View>
+                            {event.format === 'ONLINE' && (
+                                <View className="bg-purple-500 px-2 py-0.5 rounded-md ml-1.5">
+                                    <Text className="text-white text-xs font-bold">ONLINE</Text>
+                                </View>
+                            )}
                             <View className="bg-secondary-soft px-2 py-0.5 rounded-md ml-1.5">
                                 <Text className="text-secondary text-xs font-medium">{event.type}</Text>
                             </View>

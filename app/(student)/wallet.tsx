@@ -1,6 +1,6 @@
-import { Calendar, CheckCircle, MapPin, Ticket, X, XCircle, ZoomIn } from 'lucide-react-native';
+import { Calendar, CheckCircle, ExternalLink, MapPin, QrCode, Ticket, Video, X, XCircle, ZoomIn } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
-import { DimensionValue, Dimensions, FlatList, Image, Modal, RefreshControl, Text, TouchableOpacity, View } from 'react-native';
+import { DimensionValue, Dimensions, FlatList, Image, Linking, Modal, RefreshControl, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../../constants/theme';
 import { useToast } from '../../contexts/ToastContext';
@@ -130,7 +130,12 @@ export default function WalletScreen() {
         const isInactive = ['USED', 'EXPIRED', 'CANCELLED'].includes(item.status);
 
         return (
-            <View className={`bg-card rounded-2xl mb-4 overflow-hidden border border-border mx-1 shadow-sm ${isInactive ? 'opacity-70' : ''}`}>
+            <TouchableOpacity
+                className={`bg-card rounded-2xl mb-4 overflow-hidden border border-border mx-1 shadow-sm ${isInactive ? 'opacity-70' : ''}`}
+                onPress={() => !isInactive && item.qrCode && openQRPopup(item)}
+                activeOpacity={0.8}
+                disabled={isInactive || !item.qrCode}
+            >
                 {/* Ticket Header */}
                 <View className={`p-4 flex-row justify-between items-center ${isInactive ? 'bg-text-secondary' : 'bg-primary'}`}>
                     <View className="flex-1 mr-4">
@@ -145,10 +150,19 @@ export default function WalletScreen() {
                                 }) : 'TBA'}
                             </Text>
                             <View className="w-1 h-1 bg-white/50 rounded-full mx-2" />
-                            <MapPin size={12} color="rgba(255,255,255,0.8)" />
-                            <Text className="text-white/80 text-xs ml-1" numberOfLines={1}>
-                                {item.event?.location || 'Online'}
-                            </Text>
+                            {item.onlineLink || item.event?.format === 'ONLINE' ? (
+                                <>
+                                    <Video size={12} color="rgba(255,255,255,0.8)" />
+                                    <Text className="text-white/80 text-xs ml-1">Online Event</Text>
+                                </>
+                            ) : (
+                                <>
+                                    <MapPin size={12} color="rgba(255,255,255,0.8)" />
+                                    <Text className="text-white/80 text-xs ml-1" numberOfLines={1}>
+                                        {item.event?.location || 'TBD'}
+                                    </Text>
+                                </>
+                            )}
                         </View>
                     </View>
                     <View className={`px-2.5 py-1 rounded-lg ${statusInfo.bgColor} flex-row items-center`}>
@@ -160,53 +174,61 @@ export default function WalletScreen() {
                     </View>
                 </View>
 
-                {/* QR Code Section */}
-                <View className="p-6 items-center justify-center bg-card relative">
+                {/* Ticket Body - No QR shown directly */}
+                <View className="p-4 bg-card relative">
                     {/* Decorative cutouts */}
                     <View className="absolute -left-3 top-0 w-6 h-6 rounded-full bg-background" />
                     <View className="absolute -right-3 top-0 w-6 h-6 rounded-full bg-background" />
-
-                    {/* Dashed line */}
                     <View className="absolute top-0 left-6 right-6 border-t border-dashed border-border" />
 
-                    {item.qrCode && !isInactive ? (
-                        <TouchableOpacity
-                            onPress={() => openQRPopup(item)}
-                            activeOpacity={0.8}
-                            className="relative"
-                        >
-                            <Image
-                                source={{ uri: `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${item.qrCode}` }}
-                                className="w-36 h-36 rounded-lg"
-                            />
-                            {/* Zoom hint overlay */}
-                            <View className="absolute bottom-2 right-2 bg-black/60 px-2 py-1 rounded-lg flex-row items-center">
-                                <ZoomIn size={12} color="#FFF" />
-                                <Text className="text-white text-xs ml-1">Tap</Text>
-                            </View>
-                        </TouchableOpacity>
-                    ) : (
-                        <View className={`w-36 h-36 rounded-lg items-center justify-center ${isInactive ? 'bg-border/50' : 'bg-gray-100'}`}>
-                            <Ticket size={40} color={COLORS.textLight} />
-                            <Text className="text-xs text-text-secondary mt-2">
-                                {isInactive ? statusInfo.label : 'No QR Code'}
+                    {/* Event details */}
+                    <View className="flex-row items-center justify-between pt-2">
+                        <View className="flex-1">
+                            <Text className="text-text-secondary text-xs">Event Time</Text>
+                            <Text className="text-text font-medium text-sm">
+                                {item.event?.startTime ? new Date(item.event.startTime).toLocaleString('vi-VN', {
+                                    weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
+                                }) : 'TBA'}
                             </Text>
                         </View>
-                    )}
 
-                    {!isInactive && item.qrCode && (
-                        <>
-                            <Text className="text-primary text-xs mt-4 text-center font-medium">
-                                Tap QR to enlarge for scanning
-                            </Text>
-                            <Text className="text-text font-mono text-xs mt-1 bg-background px-3 py-1 rounded border border-border">
-                                {item.qrCode}
-                            </Text>
-                        </>
-                    )}
+                        {/* View QR Button OR Join Online Button OR Status */}
+                        {item.onlineLink && !isInactive ? (
+                            <TouchableOpacity
+                                className="bg-purple-600 px-4 py-2 rounded-xl flex-row items-center"
+                                onPress={() => Linking.openURL(item.onlineLink)}
+                            >
+                                <ExternalLink size={16} color="#FFF" />
+                                <Text className="text-white font-bold text-sm ml-2">Join</Text>
+                            </TouchableOpacity>
+                        ) : item.qrCode && !isInactive ? (
+                            <View className="bg-primary px-4 py-2 rounded-xl flex-row items-center">
+                                <QrCode size={16} color="#FFF" />
+                                <Text className="text-white font-bold text-sm ml-2">View QR</Text>
+                            </View>
+                        ) : isInactive ? (
+                            <View className="bg-gray-200 px-4 py-2 rounded-xl flex-row items-center">
+                                {item.status === 'USED' ? (
+                                    <>
+                                        <CheckCircle size={16} color={COLORS.textSecondary} />
+                                        <Text className="text-text-secondary font-medium text-sm ml-2">Used</Text>
+                                    </>
+                                ) : (
+                                    <>
+                                        <XCircle size={16} color={COLORS.textSecondary} />
+                                        <Text className="text-text-secondary font-medium text-sm ml-2">{statusInfo.label}</Text>
+                                    </>
+                                )}
+                            </View>
+                        ) : (
+                            <View className="bg-gray-100 px-4 py-2 rounded-xl">
+                                <Text className="text-text-secondary font-medium text-sm">Pending</Text>
+                            </View>
+                        )}
+                    </View>
 
                     {item.status === 'USED' && item.usedAt && (
-                        <View className="mt-4 flex-row items-center bg-secondary-soft px-3 py-2 rounded-lg">
+                        <View className="mt-3 flex-row items-center bg-secondary-soft px-3 py-2 rounded-lg">
                             <CheckCircle size={14} color={COLORS.secondary} />
                             <Text className="text-secondary text-xs font-medium ml-1">
                                 Checked in: {new Date(item.usedAt).toLocaleString('vi-VN')}
@@ -214,7 +236,7 @@ export default function WalletScreen() {
                         </View>
                     )}
                 </View>
-            </View>
+            </TouchableOpacity>
         );
     };
 

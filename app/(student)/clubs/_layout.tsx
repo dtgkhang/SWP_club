@@ -6,6 +6,8 @@ export default function ClubsLayout() {
             <Stack.Screen name="index" />
             <Stack.Screen name="[id]" />
             <Stack.Screen name="apply" />
+            <Stack.Screen name="my-applications" />
+            <Stack.Screen name="membership-payment" />
         </Stack>
     );
 }

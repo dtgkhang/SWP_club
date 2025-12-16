@@ -7,6 +7,8 @@ export interface Event {
     description?: string;
     type: 'PUBLIC' | 'INTERNAL';
     pricingType: 'FREE' | 'PAID';
+    format?: 'ONLINE' | 'OFFLINE';
+    onlineLink?: string;
     price?: number;
     capacity?: number;
     startTime?: string;
@@ -57,6 +59,7 @@ interface RegisterEventResponse {
         }>;
         // For PAID events
         paymentLink?: string;
+        qrCode?: string; // QR code data URL (base64) for PayOS payment
         orderCode?: number;
         amount?: number;
         transactionId?: string;
