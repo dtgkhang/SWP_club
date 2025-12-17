@@ -1,25 +1,26 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ArrowLeft, CheckCircle, ExternalLink, RefreshCw, XCircle } from 'lucide-react-native';
+import { ArrowLeft, CheckCircle, CreditCard, RefreshCw, X, XCircle } from 'lucide-react-native';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, AppState, Image, Linking, Text, TouchableOpacity, View, Dimensions } from 'react-native';
+import { ActivityIndicator, Dimensions, Modal, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { WebView } from 'react-native-webview';
 import { COLORS } from '../../constants/theme';
 import { useToast } from '../../contexts/ToastContext';
 import { eventService } from '../../services/event.service';
 import { transactionService } from '../../services/transaction.service';
 
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('window');
 
 export default function PaymentScreen() {
     const { eventId, eventTitle, amount, isFree } = useLocalSearchParams();
     const router = useRouter();
     const { showSuccess, showError, showInfo } = useToast();
-    const [status, setStatus] = useState<'PENDING' | 'PROCESSING' | 'SUCCESS' | 'ERROR'>('PENDING');
+    const [status, setStatus] = useState<'PENDING' | 'PROCESSING' | 'WEBVIEW' | 'SUCCESS' | 'ERROR'>('PENDING');
     const [tickets, setTickets] = useState<any[]>([]);
     const [errorMessage, setErrorMessage] = useState('');
     const [transactionId, setTransactionId] = useState<string | null>(null);
     const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
-    const [paymentQrCode, setPaymentQrCode] = useState<string | null>(null);
+    const [showWebView, setShowWebView] = useState(false);
     const pollingInterval = useRef<any>(null);
 
     useEffect(() => {
@@ -32,42 +33,51 @@ export default function PaymentScreen() {
         };
     }, [isFree]);
 
-    // Polling Logic
+    // Polling Logic - Start when WebView is closed but payment not confirmed
     useEffect(() => {
-        if (status === 'PROCESSING' && transactionId) {
+        if (status === 'PROCESSING' && transactionId && !showWebView) {
             startPolling();
         } else {
             if (pollingInterval.current) clearInterval(pollingInterval.current);
         }
-    }, [status, transactionId]);
+    }, [status, transactionId, showWebView]);
 
     const startPolling = () => {
         if (pollingInterval.current) clearInterval(pollingInterval.current);
 
         pollingInterval.current = setInterval(async () => {
             await checkPaymentStatus();
-        }, 3000); // Check every 3 seconds
+        }, 2000); // Check every 2 seconds
     };
 
     const checkPaymentStatus = async () => {
         if (!transactionId) return;
         try {
-            const transaction = await transactionService.getTransaction(transactionId);
-            console.log('Transaction Status:', transaction.status);
+            // Use checkAndSyncPaymentStatus instead of getTransaction
+            // This actively queries PayOS and updates the database if payment is successful
+            // This fixes the issue where webhook cannot reach localhost servers
+            const result = await transactionService.checkAndSyncPaymentStatus(transactionId);
+            console.log('Check Status Result:', result);
 
-            if (transaction.status === 'SUCCESS') {
+            if (result.status === 'SUCCESS') {
                 if (pollingInterval.current) clearInterval(pollingInterval.current);
-                setTickets(transaction.tickets || []);
+                // Fetch full transaction to get tickets
+                try {
+                    const transaction = await transactionService.getTransaction(transactionId);
+                    setTickets(transaction.tickets || []);
+                } catch (e) {
+                    console.log('Could not fetch tickets:', e);
+                }
                 setStatus('SUCCESS');
                 showSuccess('Payment Successful!', 'Your ticket has been confirmed.');
-            } else if (transaction.status === 'FAILED' || transaction.status === 'CANCELLED') {
+            } else if (result.status === 'FAILED' || result.status === 'CANCELLED') {
                 if (pollingInterval.current) clearInterval(pollingInterval.current);
                 setStatus('ERROR');
                 setErrorMessage('Payment was cancelled or failed.');
             }
+            // If still PENDING, polling will continue
         } catch (error) {
-            console.error('Polling error:', error);
-            // Don't stop polling on network error, just retry
+            console.error('Check status error:', error);
         }
     };
 
@@ -82,7 +92,6 @@ export default function PaymentScreen() {
             showSuccess('Registration Complete!', 'Your ticket has been added to your wallet');
         } catch (error: any) {
             const msg = error.message || 'Registration failed';
-            // Check if already registered
             if (msg.includes('đã đăng ký') || msg.includes('already registered')) {
                 showInfo('Already Registered', 'You have already registered for this event!');
                 router.replace('/(student)/wallet');
@@ -101,25 +110,33 @@ export default function PaymentScreen() {
 
             console.log('Registration result:', JSON.stringify(result, null, 2));
 
-            if (result.type === 'PAID' && result.paymentLink) {
-                setPaymentUrl(result.paymentLink);
-                setTransactionId(result.transactionId as string);
-
-                // Check if qrCode is returned (base64 data URL)
-                console.log('QR Code received:', result.qrCode ? 'YES (length: ' + result.qrCode.length + ')' : 'NO');
-                if (result.qrCode) {
-                    setPaymentQrCode(result.qrCode);
-                    showInfo('Scan QR', 'Scan the QR code with your banking app to pay');
+            // PAID event - must have paymentLink
+            if (result.type === 'PAID') {
+                if (result.paymentLink) {
+                    setPaymentUrl(result.paymentLink);
+                    setTransactionId(result.transactionId as string);
+                    setShowWebView(true);
+                    setStatus('WEBVIEW');
+                    showInfo('Complete Payment', 'Please complete payment in the window');
                 } else {
-                    // Fallback to opening browser if no QR code
-                    showInfo('Payment Link', 'Opening payment page...');
-                    await Linking.openURL(result.paymentLink);
+                    // PAID but no payment link - error
+                    setStatus('ERROR');
+                    setErrorMessage('Could not get payment link. Please try again.');
+                    showError('Payment Error', 'Could not get payment link');
                 }
-                // Stay on PROCESSING state to poll
-            } else if (result.tickets) {
+            }
+            // FREE event - tickets returned immediately
+            else if (result.type === 'FREE' && result.tickets) {
                 setTickets(result.tickets);
                 setStatus('SUCCESS');
                 showSuccess('Registration Complete!', 'Your ticket has been added');
+            }
+            // Unknown response type
+            else {
+                console.log('Unexpected response:', result);
+                setStatus('ERROR');
+                setErrorMessage('Unexpected response from server');
+                showError('Error', 'Unexpected response from server');
             }
         } catch (error: any) {
             const msg = error.message || 'Registration failed';
@@ -134,10 +151,32 @@ export default function PaymentScreen() {
         }
     };
 
-    const handleOpenBrowserAgain = async () => {
-        if (paymentUrl) {
-            await Linking.openURL(paymentUrl);
+    // Handle WebView navigation state change - detect success/cancel
+    const handleWebViewNavigationChange = (navState: any) => {
+        const { url } = navState;
+        console.log('WebView URL:', url);
+
+        // Detect success return URL
+        if (url.includes('/return') || url.includes('status=SUCCESS') || url.includes('status=PAID')) {
+            console.log('Payment success detected from URL');
+            setShowWebView(false);
+            // Start polling to confirm
+            checkPaymentStatus();
         }
+
+        // Detect cancel URL
+        if (url.includes('/cancel') || url.includes('status=CANCELLED')) {
+            console.log('Payment cancelled detected from URL');
+            setShowWebView(false);
+            setStatus('ERROR');
+            setErrorMessage('Payment was cancelled.');
+        }
+    };
+
+    const handleCloseWebView = () => {
+        setShowWebView(false);
+        // Continue polling after closing
+        showInfo('Payment Pending', 'We will check your payment status...');
     };
 
     // Success State
@@ -169,21 +208,20 @@ export default function PaymentScreen() {
                 <View className="bg-danger-soft w-24 h-24 rounded-full items-center justify-center mb-6">
                     <XCircle size={48} color={COLORS.error} />
                 </View>
-                <Text className="text-text text-2xl font-bold mb-2">Registration Failed</Text>
+                <Text className="text-text text-2xl font-bold mb-2">Payment Failed</Text>
                 <Text className="text-text-secondary text-center mb-6">{errorMessage}</Text>
                 <TouchableOpacity
                     className="bg-primary px-8 py-4 rounded-xl w-full items-center"
                     onPress={() => {
                         setStatus('PENDING');
                         setErrorMessage('');
+                        setTransactionId(null);
+                        setPaymentUrl(null);
                     }}
                 >
                     <Text className="text-white font-bold">Try Again</Text>
                 </TouchableOpacity>
-                <TouchableOpacity
-                    className="mt-4 p-4"
-                    onPress={() => router.back()}
-                >
+                <TouchableOpacity className="mt-4 p-4" onPress={() => router.back()}>
                     <Text className="text-text-secondary font-medium">Cancel</Text>
                 </TouchableOpacity>
             </SafeAreaView>
@@ -200,9 +238,8 @@ export default function PaymentScreen() {
         );
     }
 
-    // Processing State (Paid - Polling with QR Code)
-    if (status === 'PROCESSING' && transactionId) {
-        const qrSize = width - 120;
+    // Processing State (Waiting for payment with polling)
+    if (status === 'PROCESSING' && transactionId && !showWebView) {
         return (
             <SafeAreaView className="flex-1 bg-background">
                 {/* Header */}
@@ -214,75 +251,42 @@ export default function PaymentScreen() {
                 </View>
 
                 <View className="flex-1 items-center justify-center p-6">
-                    {paymentQrCode ? (
-                        <>
-                            {/* Event & Amount */}
-                            <Text className="text-text-secondary text-sm mb-1">Pay for Event</Text>
-                            <Text className="text-text font-bold text-lg mb-2 text-center">{eventTitle}</Text>
-                            <View className="bg-primary-soft rounded-xl px-6 py-3 mb-6">
-                                <Text className="text-primary text-2xl font-bold">
-                                    {Number(amount).toLocaleString()}₫
-                                </Text>
-                            </View>
+                    {/* Event & Amount */}
+                    <Text className="text-text-secondary text-sm mb-1">Pay for Event</Text>
+                    <Text className="text-text font-bold text-lg mb-2 text-center">{eventTitle}</Text>
+                    <View className="bg-primary-soft rounded-xl px-6 py-3 mb-8">
+                        <Text className="text-primary text-2xl font-bold">
+                            {Number(amount).toLocaleString()}₫
+                        </Text>
+                    </View>
 
-                            {/* QR Code */}
-                            <View className="bg-white p-4 rounded-2xl shadow-lg mb-6">
-                                <Image
-                                    source={{ uri: paymentQrCode }}
-                                    style={{ width: qrSize, height: qrSize }}
-                                    resizeMode="contain"
-                                />
-                            </View>
+                    {/* Status */}
+                    <View className="flex-row items-center bg-warning-soft px-6 py-3 rounded-xl mb-6">
+                        <ActivityIndicator size="small" color={COLORS.warning} />
+                        <Text className="text-warning font-medium ml-3">Waiting for payment...</Text>
+                    </View>
 
-                            <Text className="text-text-secondary text-center mb-4 px-4">
-                                Scan this QR code with your banking app to pay
-                            </Text>
+                    <TouchableOpacity
+                        className="bg-primary px-6 py-4 rounded-xl flex-row items-center mb-4"
+                        onPress={() => setShowWebView(true)}
+                    >
+                        <CreditCard size={20} color="#FFF" />
+                        <Text className="text-white font-bold ml-2">Open Payment Page</Text>
+                    </TouchableOpacity>
 
-                            {/* Status */}
-                            <View className="flex-row items-center bg-warning-soft px-4 py-2 rounded-xl mb-4">
-                                <ActivityIndicator size="small" color={COLORS.warning} />
-                                <Text className="text-warning font-medium ml-2">Checking payment status...</Text>
-                            </View>
-
-                            <TouchableOpacity
-                                className="bg-card border border-border px-6 py-3 rounded-xl flex-row items-center"
-                                onPress={checkPaymentStatus}
-                            >
-                                <RefreshCw size={18} color={COLORS.primary} />
-                                <Text className="text-primary font-bold ml-2">Check Status Now</Text>
-                            </TouchableOpacity>
-
-                            <TouchableOpacity className="p-4 mt-2" onPress={handleOpenBrowserAgain}>
-                                <Text className="text-text-secondary text-sm">Or pay via browser →</Text>
-                            </TouchableOpacity>
-                        </>
-                    ) : (
-                        <>
-                            <ActivityIndicator size="large" color={COLORS.primary} className="mb-6" />
-                            <Text className="text-text text-xl font-bold mb-2">Waiting for Payment</Text>
-                            <Text className="text-text-secondary text-center mb-8 px-4">
-                                Please complete the payment in the browser window.
-                            </Text>
-
-                            <TouchableOpacity
-                                className="bg-card border border-border px-6 py-3 rounded-xl flex-row items-center mb-4"
-                                onPress={checkPaymentStatus}
-                            >
-                                <RefreshCw size={20} color={COLORS.primary} />
-                                <Text className="text-primary font-bold ml-2">Check Status Now</Text>
-                            </TouchableOpacity>
-
-                            <TouchableOpacity className="p-4" onPress={handleOpenBrowserAgain}>
-                                <Text className="text-primary font-medium">Re-open Payment Page</Text>
-                            </TouchableOpacity>
-                        </>
-                    )}
+                    <TouchableOpacity
+                        className="bg-card border border-border px-6 py-3 rounded-xl flex-row items-center"
+                        onPress={checkPaymentStatus}
+                    >
+                        <RefreshCw size={18} color={COLORS.primary} />
+                        <Text className="text-primary font-bold ml-2">Check Status</Text>
+                    </TouchableOpacity>
                 </View>
             </SafeAreaView>
         );
     }
 
-    // Payment UI (Paid)
+    // Default: Payment Confirmation UI
     return (
         <SafeAreaView className="flex-1 bg-background">
             {/* Header */}
@@ -307,19 +311,86 @@ export default function PaymentScreen() {
                     </View>
 
                     <Text className="text-text-secondary text-center mb-8">
-                        You will be redirected to PayOS to complete your payment securely.
+                        Complete your payment securely with PayOS.
                     </Text>
 
                     {/* Payment Button */}
                     <TouchableOpacity
                         className="w-full bg-primary py-4 rounded-xl items-center flex-row justify-center"
                         onPress={handlePaidRegistration}
+                        disabled={status === 'PROCESSING'}
                     >
-                        <ExternalLink size={20} color="#FFF" />
-                        <Text className="text-white font-bold ml-2">Proceed to Payment</Text>
+                        {status === 'PROCESSING' ? (
+                            <ActivityIndicator size="small" color="#FFF" />
+                        ) : (
+                            <>
+                                <CreditCard size={20} color="#FFF" />
+                                <Text className="text-white font-bold ml-2">Pay Now</Text>
+                            </>
+                        )}
                     </TouchableOpacity>
                 </View>
             </View>
+
+            {/* WebView Modal */}
+            <Modal
+                visible={showWebView}
+                animationType="slide"
+                presentationStyle="pageSheet"
+                onRequestClose={handleCloseWebView}
+            >
+                <View style={{ flex: 1, backgroundColor: '#FFFFFF' }}>
+                    <View
+                        style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            paddingHorizontal: 16,
+                            paddingVertical: 14,
+                            backgroundColor: '#FFFFFF',
+                            borderBottomWidth: 1,
+                            borderBottomColor: '#F1F5F9'
+                        }}
+                    >
+                        <Text style={{ fontWeight: 'bold', fontSize: 16, color: '#1E293B' }}>Complete Payment</Text>
+                        <TouchableOpacity
+                            onPress={handleCloseWebView}
+                            style={{ padding: 8, backgroundColor: '#F1F5F9', borderRadius: 20 }}
+                        >
+                            <X size={20} color="#1E293B" />
+                        </TouchableOpacity>
+                    </View>
+
+                    <View style={{ flex: 1 }}>
+                        {paymentUrl && (
+                            <WebView
+                                source={{ uri: paymentUrl }}
+                                onNavigationStateChange={handleWebViewNavigationChange}
+                                startInLoadingState={true}
+                                javaScriptEnabled={true}
+                                domStorageEnabled={true}
+                                contentMode="mobile"
+                                renderLoading={() => (
+                                    <View style={{
+                                        position: 'absolute',
+                                        top: 0,
+                                        left: 0,
+                                        right: 0,
+                                        bottom: 0,
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        backgroundColor: '#FFFFFF'
+                                    }}>
+                                        <ActivityIndicator size="large" color={COLORS.primary} />
+                                        <Text style={{ color: '#64748B', marginTop: 16 }}>Loading payment page...</Text>
+                                    </View>
+                                )}
+                                style={{ flex: 1 }}
+                            />
+                        )}
+                    </View>
+                </View>
+            </Modal>
         </SafeAreaView>
     );
 }

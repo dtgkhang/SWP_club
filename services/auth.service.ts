@@ -48,6 +48,19 @@ export const authService = {
         return response;
     },
 
+    async loginWithGoogle(email: string): Promise<LoginResponse> {
+        const response = await api<LoginResponse>('/users/login-with-google', {
+            method: 'POST',
+            body: JSON.stringify({ email }),
+        });
+
+        if (response.accessToken) {
+            await setAccessToken(response.accessToken);
+        }
+
+        return response;
+    },
+
     async register(data: RegisterData): Promise<{ message: string }> {
         return api('/users/register', {
             method: 'POST',
@@ -61,5 +74,29 @@ export const authService = {
 
     async logout() {
         await clearAccessToken();
+    },
+
+    // Get events where user is assigned as staff
+    async getMyStaffEvents(): Promise<any[]> {
+        try {
+            // Get user profile to get userId
+            const profileRes = await api<{ user: User }>('/users/getprofile');
+            const userId = profileRes.user?.id;
+            if (!userId) return [];
+
+            // Get all events with staff data (includeInactive to see all)
+            const eventsRes = await api<{ success: boolean; data: any[] }>('/events?includeInactive=true');
+            const events = eventsRes.data || [];
+
+            // Filter events where current user is in staff array
+            const staffEvents = events.filter((event: any) =>
+                event.staff?.some((s: any) => s.userId === userId)
+            );
+
+            return staffEvents;
+        } catch (error) {
+            console.log('Error fetching staff events:', error);
+            return [];
+        }
     }
 };

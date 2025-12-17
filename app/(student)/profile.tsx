@@ -6,14 +6,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../../constants/theme';
 import { authService } from '../../services/auth.service';
 
-const STAFF_ROLES = ['STAFF', 'LEADER', 'TREASURER'];
-
 export default function ProfileScreen() {
     const router = useRouter();
     const [user, setUser] = useState<any>(null);
+    const [hasStaffAccess, setHasStaffAccess] = useState(false);
 
     useEffect(() => {
         loadProfile();
+        checkStaffAccess();
     }, []);
 
     const loadProfile = async () => {
@@ -22,6 +22,15 @@ export default function ProfileScreen() {
             setUser(profile);
         } catch (error) {
             console.log('Error loading profile:', error);
+        }
+    };
+
+    const checkStaffAccess = async () => {
+        try {
+            const staffEvents = await authService.getMyStaffEvents();
+            setHasStaffAccess(staffEvents.length > 0);
+        } catch (error) {
+            console.log('Error checking staff access:', error);
         }
     };
 
@@ -50,11 +59,6 @@ export default function ProfileScreen() {
 
     // Count active memberships
     const activeMemberships = (user?.memberships || []).filter((m: any) => m.status === 'ACTIVE').length;
-
-    // Check if user has Staff role
-    const hasStaffRole = (user?.memberships || []).some(
-        (m: any) => STAFF_ROLES.includes(m.role) && m.status === 'ACTIVE'
-    );
 
     return (
         <SafeAreaView className="flex-1 bg-background" edges={['top']}>
@@ -87,8 +91,8 @@ export default function ProfileScreen() {
                     </TouchableOpacity>
                 )}
 
-                {/* Staff Mode Banner - Only show if user has staff role */}
-                {hasStaffRole && (
+                {/* Staff Mode Banner - Only show if user is staff on any event */}
+                {hasStaffAccess && (
                     <TouchableOpacity
                         className="mx-5 mb-6 bg-success rounded-2xl p-4 flex-row items-center"
                         onPress={() => router.push('/(staff)/dashboard')}
@@ -126,7 +130,7 @@ export default function ProfileScreen() {
                                         {user?.auth_role || 'USER'}
                                     </Text>
                                 </View>
-                                {hasStaffRole && (
+                                {hasStaffAccess && (
                                     <View className="bg-success-soft px-2 py-0.5 rounded mr-2">
                                         <Text className="text-success text-xs font-medium">STAFF</Text>
                                     </View>

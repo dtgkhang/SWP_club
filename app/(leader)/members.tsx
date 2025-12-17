@@ -1,6 +1,6 @@
-import { useRouter } from 'expo-router';
-import { Crown, Search, Shield, User, Users } from 'lucide-react-native';
-import { useEffect, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
+import { Crown, Search, Shield, Sparkles, User, Users, Wallet } from 'lucide-react-native';
+import { useCallback, useState } from 'react';
 import { ActivityIndicator, FlatList, RefreshControl, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../../constants/theme';
@@ -11,7 +11,8 @@ interface Member {
     id: string;
     role: string;
     status: string;
-    joinedAt: string;
+    joinedAt?: string;
+    createdAt?: string;
     user: {
         id: string;
         fullName?: string;
@@ -21,15 +22,15 @@ interface Member {
     };
 }
 
-const ROLE_COLORS: Record<string, { bg: string; text: string; icon: any }> = {
-    LEADER: { bg: 'bg-purple-100', text: 'text-purple-700', icon: Crown },
-    STAFF: { bg: 'bg-blue-100', text: 'text-blue-700', icon: Shield },
-    TREASURER: { bg: 'bg-green-100', text: 'text-green-700', icon: Shield },
-    MEMBER: { bg: 'bg-gray-100', text: 'text-gray-700', icon: User },
+const ROLE_CONFIG: Record<string, { bg: string; text: string; icon: any; color: string }> = {
+    LEADER: { bg: 'bg-purple-100', text: 'text-purple-700', icon: Crown, color: '#7C3AED' },
+    ADMIN: { bg: 'bg-orange-100', text: 'text-orange-700', icon: Shield, color: '#EA580C' },
+    TREASURER: { bg: 'bg-green-100', text: 'text-green-700', icon: Wallet, color: '#16A34A' },
+    STAFF: { bg: 'bg-blue-100', text: 'text-blue-700', icon: Sparkles, color: '#2563EB' },
+    MEMBER: { bg: 'bg-gray-100', text: 'text-gray-600', icon: User, color: '#6B7280' },
 };
 
 export default function MembersScreen() {
-    const router = useRouter();
     const [members, setMembers] = useState<Member[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -37,15 +38,11 @@ export default function MembersScreen() {
     const [search, setSearch] = useState('');
     const [roleFilter, setRoleFilter] = useState<string>('ALL');
 
-    useEffect(() => {
-        loadClubId();
-    }, []);
-
-    useEffect(() => {
-        if (clubId) {
-            loadMembers();
-        }
-    }, [clubId]);
+    useFocusEffect(
+        useCallback(() => {
+            loadClubId();
+        }, [])
+    );
 
     const loadClubId = async () => {
         try {
@@ -55,17 +52,21 @@ export default function MembersScreen() {
             );
             if (leaderMembership?.clubId) {
                 setClubId(leaderMembership.clubId);
+                loadMembers(leaderMembership.clubId);
             }
         } catch (error) {
             console.log('Error loading club ID:', error);
+            setLoading(false);
         }
     };
 
-    const loadMembers = async () => {
+    const loadMembers = async (cId?: string) => {
         try {
             setLoading(true);
-            const response = await api<any>(`/clubs/${clubId}/members`);
-            // API returns { success: true, data: [...] } or { success: true, data: [...], pagination: {...} }
+            const targetClubId = cId || clubId;
+            if (!targetClubId) return;
+
+            const response = await api<any>(`/clubs/${targetClubId}/members?limit=100`);
             const membersData = response.data || [];
             setMembers(Array.isArray(membersData) ? membersData : []);
         } catch (error) {
@@ -82,10 +83,11 @@ export default function MembersScreen() {
     };
 
     const filteredMembers = members.filter(member => {
-        // Role filter
-        if (roleFilter !== 'ALL' && member.role !== roleFilter) return false;
+        if (roleFilter !== 'ALL') {
+            if (roleFilter === 'STAFF' && !['STAFF', 'TREASURER', 'ADMIN'].includes(member.role)) return false;
+            else if (roleFilter !== 'STAFF' && member.role !== roleFilter) return false;
+        }
 
-        // Search filter
         if (!search) return true;
         const searchLower = search.toLowerCase();
         return (
@@ -95,56 +97,70 @@ export default function MembersScreen() {
         );
     });
 
-    // Sort: Leader first, then Staff/Treasurer, then Members
-    const sortedMembers = filteredMembers.sort((a, b) => {
-        const roleOrder = { LEADER: 0, STAFF: 1, TREASURER: 1, MEMBER: 2 };
-        return (roleOrder[a.role as keyof typeof roleOrder] || 2) - (roleOrder[b.role as keyof typeof roleOrder] || 2);
+    const sortedMembers = [...filteredMembers].sort((a, b) => {
+        const roleOrder: Record<string, number> = { LEADER: 0, ADMIN: 1, TREASURER: 2, STAFF: 3, MEMBER: 4 };
+        return (roleOrder[a.role] ?? 5) - (roleOrder[b.role] ?? 5);
     });
 
     const roleCounts = {
         ALL: members.length,
         LEADER: members.filter(m => m.role === 'LEADER').length,
-        STAFF: members.filter(m => ['STAFF', 'TREASURER'].includes(m.role)).length,
+        STAFF: members.filter(m => ['STAFF', 'TREASURER', 'ADMIN'].includes(m.role)).length,
         MEMBER: members.filter(m => m.role === 'MEMBER').length,
     };
 
     const renderItem = ({ item }: { item: Member }) => {
-        const roleConfig = ROLE_COLORS[item.role] || ROLE_COLORS.MEMBER;
-        const RoleIcon = roleConfig.icon;
+        const config = ROLE_CONFIG[item.role] || ROLE_CONFIG.MEMBER;
+        const RoleIcon = config.icon;
+        const joinDate = item.joinedAt || item.createdAt;
 
         return (
-            <View className="mx-5 mb-3 bg-card border border-border rounded-2xl p-4">
+            <View
+                className="mx-5 mb-3 bg-card rounded-2xl p-4"
+                style={{
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 0.05,
+                    shadowRadius: 8,
+                    elevation: 2,
+                }}
+            >
                 <View className="flex-row items-center">
-                    <View className={`w-12 h-12 ${roleConfig.bg} rounded-xl items-center justify-center mr-3`}>
-                        <RoleIcon size={24} color={COLORS.text} />
+                    <View className={`w-12 h-12 ${config.bg} rounded-xl items-center justify-center mr-3`}>
+                        <RoleIcon size={22} color={config.color} />
                     </View>
                     <View className="flex-1">
-                        <Text className="text-text font-bold">{item.user.fullName || 'Unknown'}</Text>
+                        <Text className="text-text font-bold text-base">{item.user.fullName || 'Unknown'}</Text>
                         <Text className="text-text-secondary text-sm">{item.user.email}</Text>
-                        <View className="flex-row items-center mt-1">
-                            {item.user.studentCode && (
-                                <Text className="text-primary text-xs mr-2">{item.user.studentCode}</Text>
-                            )}
-                            <Text className="text-text-secondary text-xs">
-                                Joined {new Date(item.joinedAt).toLocaleDateString('vi-VN')}
-                            </Text>
-                        </View>
+                        {(item.user.studentCode || joinDate) && (
+                            <View className="flex-row items-center mt-1">
+                                {item.user.studentCode && (
+                                    <Text className="text-primary text-xs font-medium mr-2">{item.user.studentCode}</Text>
+                                )}
+                                {joinDate && (
+                                    <Text className="text-text-secondary text-xs">
+                                        Joined {new Date(joinDate).toLocaleDateString('vi-VN')}
+                                    </Text>
+                                )}
+                            </View>
+                        )}
                     </View>
-                    <View className={`px-2.5 py-1 rounded-lg ${roleConfig.bg}`}>
-                        <Text className={`text-xs font-bold ${roleConfig.text}`}>{item.role}</Text>
+                    <View className={`px-2.5 py-1.5 rounded-lg ${config.bg}`}>
+                        <Text className={`text-xs font-bold ${config.text}`}>{item.role}</Text>
                     </View>
                 </View>
             </View>
         );
     };
 
-    const RoleChip = ({ label, value, count }: { label: string; value: string; count: number }) => (
+    const FilterTab = ({ label, value, count }: { label: string; value: string; count: number }) => (
         <TouchableOpacity
             onPress={() => setRoleFilter(value)}
-            className={`px-4 py-2 rounded-xl mr-2 ${roleFilter === value ? 'bg-purple-600' : 'bg-card border border-border'}`}
-            style={roleFilter === value ? { backgroundColor: '#7C3AED' } : {}}
+            className={`px-4 py-2 rounded-full mr-2 ${roleFilter === value ? '' : 'bg-card border border-border'}`}
+            style={roleFilter === value ? { backgroundColor: COLORS.primary } : {}}
+            activeOpacity={0.7}
         >
-            <Text className={`font-bold ${roleFilter === value ? 'text-white' : 'text-text-secondary'}`}>
+            <Text className={`font-semibold ${roleFilter === value ? 'text-white' : 'text-text-secondary'}`}>
                 {label} ({count})
             </Text>
         </TouchableOpacity>
@@ -153,19 +169,19 @@ export default function MembersScreen() {
     return (
         <SafeAreaView className="flex-1 bg-background" edges={['top']}>
             {/* Header */}
-            <View className="px-5 pt-4 pb-4">
+            <View className="px-5 pt-4 pb-2">
                 <Text className="text-text text-2xl font-bold">Members</Text>
-                <Text className="text-text-secondary text-sm">Manage your club members</Text>
+                <Text className="text-text-secondary text-sm">Manage your club team</Text>
             </View>
 
             {/* Search */}
-            <View className="px-5 mb-4">
-                <View className="flex-row items-center bg-card border border-border rounded-2xl px-4 h-12">
+            <View className="px-5 py-3">
+                <View className="flex-row items-center bg-gray-50 rounded-2xl px-4 h-12">
                     <Search size={20} color={COLORS.textSecondary} />
                     <TextInput
                         placeholder="Search members..."
                         className="flex-1 ml-3 text-text"
-                        placeholderTextColor="#94A3B8"
+                        placeholderTextColor={COLORS.textSecondary}
                         value={search}
                         onChangeText={setSearch}
                     />
@@ -173,11 +189,10 @@ export default function MembersScreen() {
             </View>
 
             {/* Role Filter */}
-            <View className="mb-4">
+            <View className="px-5 pb-3">
                 <FlatList
                     horizontal
                     showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={{ paddingHorizontal: 20 }}
                     data={[
                         { label: 'All', value: 'ALL', count: roleCounts.ALL },
                         { label: 'Leader', value: 'LEADER', count: roleCounts.LEADER },
@@ -185,9 +200,7 @@ export default function MembersScreen() {
                         { label: 'Member', value: 'MEMBER', count: roleCounts.MEMBER },
                     ]}
                     keyExtractor={item => item.value}
-                    renderItem={({ item }) => (
-                        <RoleChip label={item.label} value={item.value} count={item.count} />
-                    )}
+                    renderItem={({ item }) => <FilterTab label={item.label} value={item.value} count={item.count} />}
                 />
             </View>
 
@@ -197,24 +210,24 @@ export default function MembersScreen() {
                 renderItem={renderItem}
                 keyExtractor={item => item.id}
                 showsVerticalScrollIndicator={false}
-                contentContainerStyle={{ paddingBottom: 100 }}
+                contentContainerStyle={{ paddingBottom: 120 }}
                 refreshControl={
-                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#7C3AED" />
+                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />
                 }
                 ListEmptyComponent={!loading ? (
                     <View className="items-center justify-center py-20">
                         <View className="w-20 h-20 bg-purple-100 rounded-full items-center justify-center mb-4">
-                            <Users size={40} color="#7C3AED" />
+                            <Users size={40} color={COLORS.primary} />
                         </View>
                         <Text className="text-text font-bold text-lg">No members found</Text>
-                        <Text className="text-text-secondary text-sm mt-1">
-                            {search ? 'Try a different search' : 'Your club has no members yet'}
+                        <Text className="text-text-secondary text-sm mt-1 text-center px-10">
+                            {search ? 'Try a different search term' : 'Your club has no members yet'}
                         </Text>
                     </View>
                 ) : null}
                 ListFooterComponent={loading ? (
                     <View className="py-10">
-                        <ActivityIndicator size="large" color="#7C3AED" />
+                        <ActivityIndicator size="large" color={COLORS.primary} />
                     </View>
                 ) : null}
             />

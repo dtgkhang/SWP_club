@@ -1,10 +1,8 @@
 import { Tabs, useRouter } from 'expo-router';
-import { FileText, Home, ScanLine } from 'lucide-react-native';
+import { Calendar, Home, ScanLine } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
 import { authService } from '../../services/auth.service';
-
-const STAFF_ROLES = ['STAFF', 'LEADER', 'TREASURER'];
 
 export default function StaffLayout() {
     const router = useRouter();
@@ -22,12 +20,11 @@ export default function StaffLayout() {
                 return;
             }
 
-            const { user } = await authService.getProfile();
-            const hasStaffRole = user?.memberships?.some(
-                (m: any) => STAFF_ROLES.includes(m.role) && m.status === 'ACTIVE'
-            );
+            // Check if user has any events as staff
+            const staffEvents = await authService.getMyStaffEvents();
+            const hasStaffAccess = staffEvents.length > 0;
 
-            if (!hasStaffRole) {
+            if (!hasStaffAccess) {
                 router.replace('/(student)/home');
                 return;
             }
@@ -91,14 +88,21 @@ export default function StaffLayout() {
                 }}
             />
             <Tabs.Screen
-                name="fund-request"
+                name="event-detail"
                 options={{
-                    title: 'Funds',
+                    title: 'Event',
                     tabBarIcon: ({ color, focused }) => (
                         <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
-                            <FileText size={22} color={color} strokeWidth={focused ? 2.5 : 2} />
+                            <Calendar size={22} color={color} strokeWidth={focused ? 2.5 : 2} />
                         </View>
                     ),
+                }}
+            />
+            {/* Hide fund-request from tabs but keep file for routing */}
+            <Tabs.Screen
+                name="fund-request"
+                options={{
+                    href: null, // Hide from tab bar
                 }}
             />
         </Tabs>

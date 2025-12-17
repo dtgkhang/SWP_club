@@ -1,17 +1,18 @@
-import { useRouter } from 'expo-router';
-import { Check, ChevronRight, Clock, Search, User, X } from 'lucide-react-native';
-import { useEffect, useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { Check, Clock, Search, User, X } from 'lucide-react-native';
+import { useCallback, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, RefreshControl, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../../constants/theme';
 import { authService } from '../../services/auth.service';
+import { useToast } from '../../contexts/ToastContext';
 import api from '../../services/api';
 
 interface Application {
     id: string;
     status: string;
-    reason?: string;
-    appliedAt: string;
+    introduction?: string;
+    createdAt: string;
     user: {
         id: string;
         fullName?: string;
@@ -22,23 +23,20 @@ interface Application {
 
 export default function ApplicationsScreen() {
     const router = useRouter();
+    const { showSuccess, showError } = useToast();
     const [applications, setApplications] = useState<Application[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
-    const [processing, setProcessing] = useState<string | null>(null);
+    const [processing, setProcessing] = useState<{ id: string; action: 'approve' | 'reject' } | null>(null);
     const [clubId, setClubId] = useState<string>('');
-    const [filter, setFilter] = useState<'PENDING' | 'ALL'>('PENDING');
+    const [filter, setFilter] = useState<'PENDING' | 'APPROVED' | 'REJECTED' | 'ALL'>('PENDING');
     const [search, setSearch] = useState('');
 
-    useEffect(() => {
-        loadClubId();
-    }, []);
-
-    useEffect(() => {
-        if (clubId) {
-            loadApplications();
-        }
-    }, [clubId, filter]);
+    useFocusEffect(
+        useCallback(() => {
+            loadClubId();
+        }, [])
+    );
 
     const loadClubId = async () => {
         try {
@@ -48,18 +46,23 @@ export default function ApplicationsScreen() {
             );
             if (leaderMembership?.clubId) {
                 setClubId(leaderMembership.clubId);
+                loadApplications(leaderMembership.clubId);
             }
         } catch (error) {
             console.log('Error loading club ID:', error);
+            setLoading(false);
         }
     };
 
-    const loadApplications = async () => {
+    const loadApplications = async (cId?: string) => {
         try {
             setLoading(true);
-            const statusParam = filter === 'PENDING' ? '?status=PENDING' : '';
+            const targetClubId = cId || clubId;
+            if (!targetClubId) return;
+
+            const statusParam = filter !== 'ALL' ? `?status=${filter}` : '';
             const response = await api<{ success: boolean; data: Application[] }>(
-                `/clubs/${clubId}/applications${statusParam}`
+                `/clubs/${targetClubId}/applications${statusParam}`
             );
             setApplications(response.data || []);
         } catch (error) {
@@ -76,27 +79,27 @@ export default function ApplicationsScreen() {
     };
 
     const handleReview = async (applicationId: string, action: 'approve' | 'reject') => {
-        const actionLabel = action === 'approve' ? 'approve' : 'reject';
+        const actionLabel = action === 'approve' ? 'Approve' : 'Reject';
 
         Alert.alert(
-            `${action === 'approve' ? 'Approve' : 'Reject'} Application`,
-            `Are you sure you want to ${actionLabel} this application?`,
+            `${actionLabel} Application`,
+            `Are you sure you want to ${action} this application?`,
             [
                 { text: 'Cancel', style: 'cancel' },
                 {
-                    text: action === 'approve' ? 'Approve' : 'Reject',
+                    text: actionLabel,
                     style: action === 'approve' ? 'default' : 'destructive',
                     onPress: async () => {
                         try {
-                            setProcessing(applicationId);
+                            setProcessing({ id: applicationId, action });
                             await api(`/clubs/${clubId}/applications/${applicationId}/review`, {
                                 method: 'POST',
-                                body: JSON.stringify({ action }), // lowercase 'approve' or 'reject'
+                                body: JSON.stringify({ action }),
                             });
-                            // Remove from list or refresh
+                            showSuccess('Success', `Application ${action}d successfully!`);
                             loadApplications();
                         } catch (error: any) {
-                            Alert.alert('Error', error.message || 'Failed to process application');
+                            showError('Error', error.message || 'Failed to process application');
                         } finally {
                             setProcessing(null);
                         }
@@ -116,39 +119,60 @@ export default function ApplicationsScreen() {
         );
     });
 
+    const getStatusColor = (status: string) => {
+        switch (status) {
+            case 'PENDING': return { bg: 'bg-warning/10', text: 'text-warning' };
+            case 'APPROVED': return { bg: 'bg-success/10', text: 'text-success' };
+            case 'REJECTED': return { bg: 'bg-danger/10', text: 'text-danger' };
+            default: return { bg: 'bg-gray-100', text: 'text-gray-500' };
+        }
+    };
+
     const renderItem = ({ item }: { item: Application }) => {
         const isPending = item.status === 'PENDING';
-        const isProcessing = processing === item.id;
+        const isProcessingReject = processing?.id === item.id && processing?.action === 'reject';
+        const isProcessingApprove = processing?.id === item.id && processing?.action === 'approve';
+        const isProcessing = processing?.id === item.id;
+        const statusColors = getStatusColor(item.status);
 
         return (
-            <View className="mx-5 mb-3 bg-card border border-border rounded-2xl overflow-hidden">
+            <View
+                className="mx-5 mb-3 bg-card rounded-2xl overflow-hidden"
+                style={{
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 0.05,
+                    shadowRadius: 8,
+                    elevation: 2,
+                }}
+            >
                 {/* User Info */}
                 <View className="p-4 flex-row items-center">
-                    <View className="w-12 h-12 bg-purple-100 rounded-xl items-center justify-center mr-3">
-                        <User size={24} color="#7C3AED" />
+                    <View className="w-12 h-12 bg-primary/10 rounded-xl items-center justify-center mr-3">
+                        <Text className="text-primary text-lg font-bold">
+                            {(item.user.fullName || item.user.email || '?').charAt(0).toUpperCase()}
+                        </Text>
                     </View>
                     <View className="flex-1">
-                        <Text className="text-text font-bold">{item.user.fullName || 'Unknown'}</Text>
+                        <Text className="text-text font-bold text-base">{item.user.fullName || 'Unknown'}</Text>
                         <Text className="text-text-secondary text-sm">{item.user.email}</Text>
                         {item.user.studentCode && (
-                            <Text className="text-primary text-xs">{item.user.studentCode}</Text>
+                            <Text className="text-primary text-xs font-medium mt-0.5">{item.user.studentCode}</Text>
                         )}
                     </View>
-                    <View className={`px-2.5 py-1 rounded-lg ${item.status === 'PENDING' ? 'bg-warning-soft' :
-                        item.status === 'APPROVED' ? 'bg-success-soft' : 'bg-danger-soft'
-                        }`}>
-                        <Text className={`text-xs font-bold ${item.status === 'PENDING' ? 'text-warning' :
-                            item.status === 'APPROVED' ? 'text-success' : 'text-danger'
-                            }`}>
+                    <View className={`px-2.5 py-1 rounded-lg ${statusColors.bg}`}>
+                        <Text className={`text-xs font-bold ${statusColors.text}`}>
                             {item.status}
                         </Text>
                     </View>
                 </View>
 
-                {/* Application Reason */}
-                {item.reason && (
+                {/* Introduction */}
+                {item.introduction && (
                     <View className="px-4 pb-3">
-                        <Text className="text-text-secondary text-sm italic">"{item.reason}"</Text>
+                        <View className="bg-gray-50 rounded-xl p-3">
+                            <Text className="text-text-secondary text-sm italic">"{item.introduction}"</Text>
+                        </View>
                     </View>
                 )}
 
@@ -156,7 +180,7 @@ export default function ApplicationsScreen() {
                 <View className="px-4 pb-3 flex-row items-center">
                     <Clock size={12} color={COLORS.textSecondary} />
                     <Text className="text-text-secondary text-xs ml-1">
-                        Applied {new Date(item.appliedAt).toLocaleDateString('vi-VN')}
+                        Applied {new Date(item.createdAt).toLocaleDateString('vi-VN')}
                     </Text>
                 </View>
 
@@ -164,11 +188,12 @@ export default function ApplicationsScreen() {
                 {isPending && (
                     <View className="flex-row border-t border-border">
                         <TouchableOpacity
-                            className="flex-1 py-3 flex-row items-center justify-center border-r border-border"
+                            className="flex-1 py-3.5 flex-row items-center justify-center border-r border-border"
                             onPress={() => handleReview(item.id, 'reject')}
                             disabled={isProcessing}
+                            activeOpacity={0.7}
                         >
-                            {isProcessing ? (
+                            {isProcessingReject ? (
                                 <ActivityIndicator size="small" color={COLORS.error} />
                             ) : (
                                 <>
@@ -178,11 +203,13 @@ export default function ApplicationsScreen() {
                             )}
                         </TouchableOpacity>
                         <TouchableOpacity
-                            className="flex-1 py-3 flex-row items-center justify-center bg-success"
+                            className="flex-1 py-3.5 flex-row items-center justify-center"
+                            style={{ backgroundColor: COLORS.success }}
                             onPress={() => handleReview(item.id, 'approve')}
                             disabled={isProcessing}
+                            activeOpacity={0.7}
                         >
-                            {isProcessing ? (
+                            {isProcessingApprove ? (
                                 <ActivityIndicator size="small" color="#FFF" />
                             ) : (
                                 <>
@@ -197,22 +224,38 @@ export default function ApplicationsScreen() {
         );
     };
 
+    const FilterTab = ({ value, label }: { value: typeof filter; label: string }) => (
+        <TouchableOpacity
+            onPress={() => {
+                setFilter(value);
+                if (clubId) loadApplications();
+            }}
+            className={`px-4 py-2 rounded-full mr-2 ${filter === value ? '' : 'bg-card border border-border'}`}
+            style={filter === value ? { backgroundColor: COLORS.primary } : {}}
+            activeOpacity={0.7}
+        >
+            <Text className={`font-semibold ${filter === value ? 'text-white' : 'text-text-secondary'}`}>
+                {label}
+            </Text>
+        </TouchableOpacity>
+    );
+
     return (
         <SafeAreaView className="flex-1 bg-background" edges={['top']}>
             {/* Header */}
-            <View className="px-5 pt-4 pb-4">
+            <View className="px-5 pt-4 pb-2">
                 <Text className="text-text text-2xl font-bold">Applications</Text>
                 <Text className="text-text-secondary text-sm">Review membership requests</Text>
             </View>
 
             {/* Search */}
-            <View className="px-5 mb-4">
-                <View className="flex-row items-center bg-card border border-border rounded-2xl px-4 h-12">
+            <View className="px-5 py-3">
+                <View className="flex-row items-center bg-gray-50 rounded-2xl px-4 h-12">
                     <Search size={20} color={COLORS.textSecondary} />
                     <TextInput
                         placeholder="Search by name, email..."
                         className="flex-1 ml-3 text-text"
-                        placeholderTextColor="#94A3B8"
+                        placeholderTextColor={COLORS.textSecondary}
                         value={search}
                         onChangeText={setSearch}
                     />
@@ -220,25 +263,19 @@ export default function ApplicationsScreen() {
             </View>
 
             {/* Filter Tabs */}
-            <View className="flex-row px-5 mb-4">
-                <TouchableOpacity
-                    onPress={() => setFilter('PENDING')}
-                    className={`px-4 py-2 rounded-xl mr-2 ${filter === 'PENDING' ? 'bg-purple-600' : 'bg-card border border-border'}`}
-                    style={filter === 'PENDING' ? { backgroundColor: '#7C3AED' } : {}}
-                >
-                    <Text className={`font-bold ${filter === 'PENDING' ? 'text-white' : 'text-text-secondary'}`}>
-                        Pending
-                    </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                    onPress={() => setFilter('ALL')}
-                    className={`px-4 py-2 rounded-xl ${filter === 'ALL' ? 'bg-purple-600' : 'bg-card border border-border'}`}
-                    style={filter === 'ALL' ? { backgroundColor: '#7C3AED' } : {}}
-                >
-                    <Text className={`font-bold ${filter === 'ALL' ? 'text-white' : 'text-text-secondary'}`}>
-                        All
-                    </Text>
-                </TouchableOpacity>
+            <View className="px-5 pb-3">
+                <FlatList
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    data={[
+                        { value: 'PENDING' as const, label: 'Pending' },
+                        { value: 'APPROVED' as const, label: 'Approved' },
+                        { value: 'REJECTED' as const, label: 'Rejected' },
+                        { value: 'ALL' as const, label: 'All' },
+                    ]}
+                    keyExtractor={item => item.value}
+                    renderItem={({ item }) => <FilterTab value={item.value} label={item.label} />}
+                />
             </View>
 
             {/* Applications List */}
@@ -247,26 +284,26 @@ export default function ApplicationsScreen() {
                 renderItem={renderItem}
                 keyExtractor={item => item.id}
                 showsVerticalScrollIndicator={false}
-                contentContainerStyle={{ paddingBottom: 100 }}
+                contentContainerStyle={{ paddingBottom: 120 }}
                 refreshControl={
-                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#7C3AED" />
+                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />
                 }
                 ListEmptyComponent={!loading ? (
                     <View className="items-center justify-center py-20">
                         <View className="w-20 h-20 bg-purple-100 rounded-full items-center justify-center mb-4">
-                            <Check size={40} color="#7C3AED" />
+                            <User size={40} color={COLORS.primary} />
                         </View>
                         <Text className="text-text font-bold text-lg">
-                            {filter === 'PENDING' ? 'No pending applications' : 'No applications'}
+                            {filter === 'PENDING' ? 'No pending applications' : `No ${filter.toLowerCase()} applications`}
                         </Text>
-                        <Text className="text-text-secondary text-sm mt-1">
-                            {filter === 'PENDING' ? 'All caught up!' : 'No one has applied yet'}
+                        <Text className="text-text-secondary text-sm mt-1 text-center px-10">
+                            {filter === 'PENDING' ? 'All caught up! Check back later.' : 'No applications match this filter.'}
                         </Text>
                     </View>
                 ) : null}
                 ListFooterComponent={loading ? (
                     <View className="py-10">
-                        <ActivityIndicator size="large" color="#7C3AED" />
+                        <ActivityIndicator size="large" color={COLORS.primary} />
                     </View>
                 ) : null}
             />

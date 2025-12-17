@@ -18,24 +18,59 @@ export default function RegisterScreen() {
     const [loading, setLoading] = useState(false);
 
     const handleRegister = async () => {
-        if (!email || !password || !fullName || !studentCode) {
+        // Trim all inputs
+        const trimmedEmail = email.trim().toLowerCase();
+        const trimmedPassword = password.trim();
+        const trimmedFullName = fullName.trim();
+        const trimmedStudentCode = studentCode.trim().toUpperCase();
+        const trimmedPhone = phone.trim();
+
+        // Validate required fields
+        if (!trimmedEmail || !trimmedPassword || !trimmedFullName || !trimmedStudentCode) {
             showWarning('Missing Fields', 'Please fill in all required fields');
             return;
         }
 
-        if (password.length < 6) {
+        // Validate email format
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(trimmedEmail)) {
+            showWarning('Invalid Email', 'Please enter a valid email address');
+            return;
+        }
+
+        // Validate FPT email
+        if (!trimmedEmail.endsWith('@fpt.edu.vn')) {
+            showWarning('Invalid Email', 'Please use your @fpt.edu.vn email');
+            return;
+        }
+
+        // Validate password length
+        if (trimmedPassword.length < 6) {
             showWarning('Weak Password', 'Password must be at least 6 characters');
+            return;
+        }
+
+        // Validate student code format (e.g., SE171234)
+        const studentCodeRegex = /^[A-Z]{2}\d{6}$/;
+        if (!studentCodeRegex.test(trimmedStudentCode)) {
+            showWarning('Invalid Student ID', 'Student ID must be 2 letters + 6 digits (e.g., SE171234)');
+            return;
+        }
+
+        // Validate phone if provided
+        if (trimmedPhone && !/^\d{10}$/.test(trimmedPhone.replace(/[^0-9]/g, ''))) {
+            showWarning('Invalid Phone', 'Phone number must be 10 digits');
             return;
         }
 
         try {
             setLoading(true);
             await authService.register({
-                email,
-                password,
-                fullName,
-                studentCode,
-                phone
+                email: trimmedEmail,
+                password: trimmedPassword,
+                fullName: trimmedFullName,
+                studentCode: trimmedStudentCode,
+                phone: trimmedPhone || undefined
             });
             showSuccess('Registration Successful', 'Please login with your new account');
             router.back();

@@ -58,7 +58,7 @@ export default function EditProfileScreen() {
         try {
             setSaving(true);
             await api('/users/profile', {
-                method: 'PUT',
+                method: 'PATCH',
                 body: JSON.stringify({
                     fullName: fullName.trim(),
                     phone: phone.trim() || undefined,
