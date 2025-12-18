@@ -1,17 +1,22 @@
 import { Image } from 'expo-image';
-import { useFocusEffect } from 'expo-router';
-import { Calendar, CheckCircle, ChevronRight, Clock, ExternalLink, MapPin, QrCode, Sparkles, Ticket, Video, X, XCircle } from 'lucide-react-native';
-import { useCallback, useEffect, useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { ArrowDownLeft, ArrowUpRight, Calendar, CheckCircle, ChevronRight, Clock, CreditCard, ExternalLink, MapPin, QrCode, Receipt, Sparkles, Star, Ticket, Video, X, XCircle } from 'lucide-react-native';
+import { useCallback, useState } from 'react';
 import { DimensionValue, Dimensions, FlatList, Linking, Modal, RefreshControl, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../../constants/theme';
 import { useToast } from '../../contexts/ToastContext';
 import { eventService } from '../../services/event.service';
+import { TransactionListItem, transactionService } from '../../services/transaction.service';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const QR_POPUP_SIZE = SCREEN_WIDTH - 100;
 
+type SectionType = 'TICKETS' | 'TRANSACTIONS';
 type TabType = 'ALL' | 'ACTIVE' | 'USED' | 'EXPIRED';
+type TransactionFilterType = 'ALL' | 'PENDING' | 'SUCCESS' | 'FAILED';
+type FilterTab = { key: string; label: string; count: number; emoji: string };
+
 
 // Skeleton Component
 const Skeleton = ({ width, height, rounded = 8 }: { width: DimensionValue; height: number; rounded?: number }) => (
@@ -48,41 +53,89 @@ const TicketSkeleton = () => (
     </View>
 );
 
+// Transaction Skeleton
+const TransactionSkeleton = () => (
+    <View className="mb-3 mx-1">
+        <View className="bg-card rounded-2xl border border-border p-4 flex-row items-center">
+            <Skeleton width={48} height={48} rounded={12} />
+            <View className="flex-1 ml-4">
+                <Skeleton width="70%" height={16} rounded={4} />
+                <View className="mt-2">
+                    <Skeleton width="50%" height={12} rounded={4} />
+                </View>
+            </View>
+            <Skeleton width={80} height={20} rounded={4} />
+        </View>
+    </View>
+);
+
 export default function WalletScreen() {
+    const router = useRouter();
     const { showError } = useToast();
+
+    // Section State
+    const [activeSection, setActiveSection] = useState<SectionType>('TICKETS');
+
+    // Ticket States
     const [tickets, setTickets] = useState<any[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
+    const [loadingTickets, setLoadingTickets] = useState(true);
+    const [refreshingTickets, setRefreshingTickets] = useState(false);
     const [activeTab, setActiveTab] = useState<TabType>('ALL');
     const [selectedTicket, setSelectedTicket] = useState<any>(null);
     const [showQRModal, setShowQRModal] = useState(false);
 
+    // Transaction States
+    const [transactions, setTransactions] = useState<TransactionListItem[]>([]);
+    const [loadingTransactions, setLoadingTransactions] = useState(true);
+    const [refreshingTransactions, setRefreshingTransactions] = useState(false);
+    const [transactionFilter, setTransactionFilter] = useState<TransactionFilterType>('ALL');
+
     useFocusEffect(
         useCallback(() => {
-            loadTickets();
-        }, [])
+            if (activeSection === 'TICKETS') {
+                loadTickets();
+            } else {
+                loadTransactions();
+            }
+        }, [activeSection])
     );
 
     const loadTickets = async () => {
         try {
-            // Only set loading on first load
-            if (tickets.length === 0) setLoading(true);
+            if (tickets.length === 0) setLoadingTickets(true);
             const data = await eventService.getMyTickets();
-
-            // Filter out RESERVED status (pending/abandoned payments)
             const validTickets = data.filter((t: any) => t.status !== 'RESERVED');
             setTickets(validTickets);
         } catch (error) {
             console.log('Error loading tickets:', error);
         } finally {
-            setLoading(false);
-            setRefreshing(false);
+            setLoadingTickets(false);
+            setRefreshingTickets(false);
         }
     };
 
-    const onRefresh = () => {
-        setRefreshing(true);
+    const loadTransactions = async () => {
+        try {
+            if (transactions.length === 0) setLoadingTransactions(true);
+            const statusFilter = transactionFilter === 'ALL' ? undefined : transactionFilter as any;
+            const { transactions: data } = await transactionService.getMyTransactions({ status: statusFilter });
+            setTransactions(data);
+        } catch (error) {
+            console.log('Error loading transactions:', error);
+        } finally {
+            setLoadingTransactions(false);
+            setRefreshingTransactions(false);
+        }
+    };
+
+    const onRefreshTickets = () => {
+        setRefreshingTickets(true);
         loadTickets();
+    };
+
+    const onRefreshTransactions = () => {
+        setRefreshingTransactions(true);
+        loadTransactions();
     };
 
     const openQRPopup = (ticket: any) => {
@@ -107,37 +160,86 @@ export default function WalletScreen() {
         }
     };
 
+    const getTransactionStatusInfo = (status: string) => {
+        switch (status) {
+            case 'SUCCESS':
+                return { label: 'Success', color: COLORS.success, bgClass: 'bg-success' };
+            case 'PENDING':
+                return { label: 'Pending', color: COLORS.warning, bgClass: 'bg-warning' };
+            case 'FAILED':
+                return { label: 'Failed', color: COLORS.error, bgClass: 'bg-error' };
+            case 'CANCELLED':
+                return { label: 'Cancelled', color: COLORS.textLight, bgClass: 'bg-gray-400' };
+            case 'REFUNDED':
+                return { label: 'Refunded', color: COLORS.secondary, bgClass: 'bg-secondary' };
+            default:
+                return { label: status, color: COLORS.textSecondary, bgClass: 'bg-gray-400' };
+        }
+    };
+
+    const getTransactionTypeInfo = (type: string) => {
+        switch (type) {
+            case 'MEMBERSHIP':
+                return { label: 'Membership', icon: CreditCard, color: COLORS.primary };
+            case 'EVENT_TICKET':
+                return { label: 'Event Ticket', icon: Ticket, color: COLORS.secondary };
+            case 'TOPUP':
+                return { label: 'Top Up', icon: ArrowDownLeft, color: COLORS.success };
+            case 'REFUND':
+                return { label: 'Refund', icon: ArrowUpRight, color: COLORS.warning };
+            default:
+                return { label: type, icon: Receipt, color: COLORS.textSecondary };
+        }
+    };
+
     const filteredTickets = tickets.filter(ticket => {
         if (activeTab === 'ALL') return true;
         const info = getStatusInfo(ticket.status);
         return info.category === activeTab;
     });
 
-    const counts = {
+    const filteredTransactions = transactions.filter(tx => {
+        if (transactionFilter === 'ALL') return true;
+        return tx.status === transactionFilter;
+    });
+
+    const ticketCounts = {
         all: tickets.length,
         active: tickets.filter(t => ['PAID', 'INIT', 'RESERVED'].includes(t.status)).length,
         used: tickets.filter(t => t.status === 'USED').length,
         expired: tickets.filter(t => ['EXPIRED', 'CANCELLED'].includes(t.status)).length,
     };
 
-    const tabs: { key: TabType; label: string; count: number; emoji: string }[] = [
-        { key: 'ALL', label: 'All', count: counts.all, emoji: '🎫' },
-        { key: 'ACTIVE', label: 'Active', count: counts.active, emoji: '✨' },
-        { key: 'USED', label: 'Used', count: counts.used, emoji: '✅' },
-        { key: 'EXPIRED', label: 'Expired', count: counts.expired, emoji: '⏰' },
+    const transactionCounts = {
+        all: transactions.length,
+        pending: transactions.filter(t => t.status === 'PENDING').length,
+        success: transactions.filter(t => t.status === 'SUCCESS').length,
+        failed: transactions.filter(t => ['FAILED', 'CANCELLED'].includes(t.status)).length,
+    };
+
+    const ticketTabs: { key: TabType; label: string; count: number; emoji: string }[] = [
+        { key: 'ALL', label: 'All', count: ticketCounts.all, emoji: '🎫' },
+        { key: 'ACTIVE', label: 'Active', count: ticketCounts.active, emoji: '✨' },
+        { key: 'USED', label: 'Used', count: ticketCounts.used, emoji: '✅' },
+        { key: 'EXPIRED', label: 'Expired', count: ticketCounts.expired, emoji: '⏰' },
     ];
 
-    // Generate QR image URL - handle both direct URLs and text codes
+    const transactionTabs: { key: TransactionFilterType; label: string; count: number; emoji: string }[] = [
+        { key: 'ALL', label: 'All', count: transactionCounts.all, emoji: '📋' },
+        { key: 'PENDING', label: 'Pending', count: transactionCounts.pending, emoji: '⏳' },
+        { key: 'SUCCESS', label: 'Success', count: transactionCounts.success, emoji: '✅' },
+        { key: 'FAILED', label: 'Failed', count: transactionCounts.failed, emoji: '❌' },
+    ];
+
+    // Generate QR image URL
     const getQRImageUrl = (qrCode: string) => {
         if (!qrCode) return null;
-        // If already a URL, use directly
         if (qrCode.startsWith('http')) return qrCode;
-        // Otherwise generate via API
         return `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(qrCode)}&format=png&margin=10`;
     };
 
     // Premium Ticket Card
-    const renderItem = ({ item, index }: { item: any; index: number }) => {
+    const renderTicketItem = ({ item, index }: { item: any; index: number }) => {
         const statusInfo = getStatusInfo(item.status);
         const isInactive = ['USED', 'EXPIRED', 'CANCELLED'].includes(item.status);
         const isOnline = item.onlineLink || item.event?.format === 'ONLINE';
@@ -337,12 +439,26 @@ export default function WalletScreen() {
                         {/* Used At Info */}
                         {item.status === 'USED' && item.usedAt && (
                             <View className="px-4 pb-4">
-                                <View className="flex-row items-center bg-success-soft px-4 py-2.5 rounded-xl">
+                                <View className="flex-row items-center bg-success-soft px-4 py-2.5 rounded-xl mb-3">
                                     <CheckCircle size={16} color={COLORS.success} />
                                     <Text className="text-success text-sm font-medium ml-2">
                                         Checked in: {new Date(item.usedAt).toLocaleString('vi-VN')}
                                     </Text>
                                 </View>
+                                {/* Rate Event Button */}
+                                <TouchableOpacity
+                                    className="flex-row items-center justify-center bg-primary py-3 rounded-xl"
+                                    onPress={() => router.push({ pathname: '/(student)/events/feedback', params: { id: item.event?.id } })}
+                                    style={{
+                                        shadowColor: COLORS.primary,
+                                        shadowOffset: { width: 0, height: 2 },
+                                        shadowOpacity: 0.2,
+                                        shadowRadius: 4,
+                                    }}
+                                >
+                                    <Star size={18} color="#FFF" fill="#FFF" />
+                                    <Text className="text-white font-bold text-sm ml-2">Rate This Event</Text>
+                                </TouchableOpacity>
                             </View>
                         )}
                     </View>
@@ -351,13 +467,103 @@ export default function WalletScreen() {
         );
     };
 
+    // Transaction Card
+    const renderTransactionItem = ({ item }: { item: TransactionListItem }) => {
+        const statusInfo = getTransactionStatusInfo(item.status);
+        const typeInfo = getTransactionTypeInfo(item.type);
+        const TypeIcon = typeInfo.icon;
+
+        const getDescription = () => {
+            if (item.type === 'MEMBERSHIP' && item.referenceMembership?.club) {
+                return item.referenceMembership.club.name;
+            }
+            if (item.type === 'EVENT_TICKET' && item.referenceTicket?.event) {
+                return item.referenceTicket.event.title;
+            }
+            if (item.club) {
+                return item.club.name;
+            }
+            return typeInfo.label;
+        };
+
+        return (
+            <TouchableOpacity
+                className="mb-3 mx-1"
+                activeOpacity={0.8}
+                onPress={() => {
+                    // Could navigate to transaction detail in future
+                }}
+                style={{
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 0.05,
+                    shadowRadius: 8,
+                }}
+            >
+                <View className="bg-card rounded-2xl border border-border p-4">
+                    <View className="flex-row items-center">
+                        {/* Icon */}
+                        <View
+                            className="w-12 h-12 rounded-xl items-center justify-center"
+                            style={{ backgroundColor: typeInfo.color + '15' }}
+                        >
+                            <TypeIcon size={24} color={typeInfo.color} />
+                        </View>
+
+                        {/* Info */}
+                        <View className="flex-1 ml-4">
+                            <Text className="text-text font-bold text-base" numberOfLines={1}>
+                                {getDescription()}
+                            </Text>
+                            <View className="flex-row items-center mt-1">
+                                <Text className="text-text-secondary text-sm">
+                                    {new Date(item.createdAt).toLocaleDateString('vi-VN', {
+                                        day: 'numeric', month: 'short', year: 'numeric'
+                                    })}
+                                </Text>
+                                <Text className="text-text-secondary mx-2">•</Text>
+                                <Text className="text-text-secondary text-sm">
+                                    {typeInfo.label}
+                                </Text>
+                            </View>
+                        </View>
+
+                        {/* Amount & Status */}
+                        <View className="items-end">
+                            <Text className="text-text font-bold text-base">
+                                {item.amount.toLocaleString()}₫
+                            </Text>
+                            <View
+                                className={`px-2 py-0.5 rounded-full mt-1 ${statusInfo.bgClass}`}
+                            >
+                                <Text className="text-white text-xs font-bold">
+                                    {statusInfo.label}
+                                </Text>
+                            </View>
+                        </View>
+                    </View>
+                </View>
+            </TouchableOpacity>
+        );
+    };
+
     // Loading State
-    if (loading && tickets.length === 0) {
+    const isLoading = activeSection === 'TICKETS' ? loadingTickets : loadingTransactions;
+    const isEmpty = activeSection === 'TICKETS' ? tickets.length === 0 : transactions.length === 0;
+
+    if (isLoading && isEmpty) {
         return (
             <SafeAreaView className="flex-1 bg-background" edges={['top']}>
                 <View className="px-5 pt-3 pb-5">
-                    <Text className="text-text text-2xl font-bold">My Tickets</Text>
-                    <Text className="text-text-secondary text-sm mt-1">Your event passes & tickets</Text>
+                    <Text className="text-text text-2xl font-bold">Wallet</Text>
+                    <Text className="text-text-secondary text-sm mt-1">Your tickets & transactions</Text>
+                </View>
+                <View className="flex-row px-5 mb-4">
+                    {[1, 2].map(i => (
+                        <View key={i} className="mr-3">
+                            <Skeleton width={120} height={44} rounded={22} />
+                        </View>
+                    ))}
                 </View>
                 <View className="flex-row px-5 mb-4">
                     {[1, 2, 3].map(i => (
@@ -367,9 +573,18 @@ export default function WalletScreen() {
                     ))}
                 </View>
                 <View className="flex-1 px-4">
-                    <TicketSkeleton />
-                    <TicketSkeleton />
-                    <TicketSkeleton />
+                    {activeSection === 'TICKETS' ? (
+                        <>
+                            <TicketSkeleton />
+                            <TicketSkeleton />
+                        </>
+                    ) : (
+                        <>
+                            <TransactionSkeleton />
+                            <TransactionSkeleton />
+                            <TransactionSkeleton />
+                        </>
+                    )}
                 </View>
             </SafeAreaView>
         );
@@ -503,9 +718,11 @@ export default function WalletScreen() {
             <View className="px-5 pt-3 pb-4">
                 <View className="flex-row items-center justify-between">
                     <View>
-                        <Text className="text-text text-2xl font-bold">My Tickets</Text>
+                        <Text className="text-text text-2xl font-bold">Wallet</Text>
                         <Text className="text-text-secondary text-sm mt-0.5">
-                            {counts.active} active ticket{counts.active !== 1 ? 's' : ''}
+                            {activeSection === 'TICKETS'
+                                ? `${ticketCounts.active} active ticket${ticketCounts.active !== 1 ? 's' : ''}`
+                                : `${transactionCounts.all} transaction${transactionCounts.all !== 1 ? 's' : ''}`}
                         </Text>
                     </View>
                     <View
@@ -517,77 +734,166 @@ export default function WalletScreen() {
                             shadowRadius: 8,
                         }}
                     >
-                        <Ticket size={26} color={COLORS.primary} />
+                        {activeSection === 'TICKETS' ? (
+                            <Ticket size={26} color={COLORS.primary} />
+                        ) : (
+                            <Receipt size={26} color={COLORS.primary} />
+                        )}
                     </View>
                 </View>
             </View>
 
-            {/* Tabs - Pill Style */}
+            {/* Section Toggle */}
+            <View className="px-5 mb-4">
+                <View className="flex-row bg-card border border-border rounded-2xl p-1">
+                    <TouchableOpacity
+                        className={`flex-1 py-3 rounded-xl items-center flex-row justify-center ${activeSection === 'TICKETS' ? 'bg-primary' : ''}`}
+                        onPress={() => setActiveSection('TICKETS')}
+                        style={activeSection === 'TICKETS' ? {
+                            shadowColor: COLORS.primary,
+                            shadowOffset: { width: 0, height: 2 },
+                            shadowOpacity: 0.3,
+                            shadowRadius: 4,
+                        } : {}}
+                    >
+                        <Ticket size={18} color={activeSection === 'TICKETS' ? '#FFF' : COLORS.textSecondary} />
+                        <Text className={`font-bold ml-2 ${activeSection === 'TICKETS' ? 'text-white' : 'text-text-secondary'}`}>
+                            Tickets
+                        </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        className={`flex-1 py-3 rounded-xl items-center flex-row justify-center ${activeSection === 'TRANSACTIONS' ? 'bg-primary' : ''}`}
+                        onPress={() => {
+                            setActiveSection('TRANSACTIONS');
+                            if (transactions.length === 0) loadTransactions();
+                        }}
+                        style={activeSection === 'TRANSACTIONS' ? {
+                            shadowColor: COLORS.primary,
+                            shadowOffset: { width: 0, height: 2 },
+                            shadowOpacity: 0.3,
+                            shadowRadius: 4,
+                        } : {}}
+                    >
+                        <Receipt size={18} color={activeSection === 'TRANSACTIONS' ? '#FFF' : COLORS.textSecondary} />
+                        <Text className={`font-bold ml-2 ${activeSection === 'TRANSACTIONS' ? 'text-white' : 'text-text-secondary'}`}>
+                            Transactions
+                        </Text>
+                    </TouchableOpacity>
+                </View>
+            </View>
+
+            {/* Filter Tabs */}
             <View className="mb-4">
-                <FlatList
+                <FlatList<FilterTab>
                     horizontal
                     showsHorizontalScrollIndicator={false}
                     contentContainerStyle={{ paddingHorizontal: 20 }}
-                    data={tabs.filter(tab => tab.count > 0 || tab.key === 'ALL')}
+                    data={(activeSection === 'TICKETS'
+                        ? ticketTabs.filter(tab => tab.count > 0 || tab.key === 'ALL')
+                        : transactionTabs.filter(tab => tab.count > 0 || tab.key === 'ALL')
+                    ) as FilterTab[]}
                     keyExtractor={(item) => item.key}
-                    renderItem={({ item: tab }) => (
-                        <TouchableOpacity
-                            onPress={() => setActiveTab(tab.key)}
-                            className={`px-5 py-3 rounded-full mr-3 flex-row items-center ${activeTab === tab.key ? 'bg-primary' : 'bg-card border border-border'
-                                }`}
-                            style={activeTab === tab.key ? {
-                                shadowColor: COLORS.primary,
-                                shadowOffset: { width: 0, height: 4 },
-                                shadowOpacity: 0.3,
-                                shadowRadius: 8,
-                            } : {}}
-                        >
-                            <Text className="mr-1">{tab.emoji}</Text>
-                            <Text className={`font-bold ${activeTab === tab.key ? 'text-white' : 'text-text-secondary'}`}>
-                                {tab.label}
-                            </Text>
-                            <View
-                                className={`ml-2 px-2 py-0.5 rounded-full ${activeTab === tab.key ? 'bg-white/25' : 'bg-border'
+                    renderItem={({ item: tab }) => {
+                        const isActive = activeSection === 'TICKETS'
+                            ? activeTab === tab.key
+                            : transactionFilter === tab.key;
+
+                        return (
+                            <TouchableOpacity
+                                onPress={() => {
+                                    if (activeSection === 'TICKETS') {
+                                        setActiveTab(tab.key as TabType);
+                                    } else {
+                                        setTransactionFilter(tab.key as TransactionFilterType);
+                                    }
+                                }}
+                                className={`px-5 py-3 rounded-full mr-3 flex-row items-center ${isActive ? 'bg-primary' : 'bg-card border border-border'
                                     }`}
+                                style={isActive ? {
+                                    shadowColor: COLORS.primary,
+                                    shadowOffset: { width: 0, height: 4 },
+                                    shadowOpacity: 0.3,
+                                    shadowRadius: 8,
+                                } : {}}
                             >
-                                <Text className={`text-xs font-bold ${activeTab === tab.key ? 'text-white' : 'text-text-secondary'}`}>
-                                    {tab.count}
+                                <Text className="mr-1">{tab.emoji}</Text>
+                                <Text className={`font-bold ${isActive ? 'text-white' : 'text-text-secondary'}`}>
+                                    {tab.label}
                                 </Text>
-                            </View>
-                        </TouchableOpacity>
-                    )}
+                                <View
+                                    className={`ml-2 px-2 py-0.5 rounded-full ${isActive ? 'bg-white/25' : 'bg-border'
+                                        }`}
+                                >
+                                    <Text className={`text-xs font-bold ${isActive ? 'text-white' : 'text-text-secondary'}`}>
+                                        {tab.count}
+                                    </Text>
+                                </View>
+                            </TouchableOpacity>
+                        );
+                    }}
                 />
             </View>
 
-            {/* Tickets List */}
-            <FlatList
-                data={filteredTickets}
-                renderItem={renderItem}
-                keyExtractor={item => item.id}
-                showsVerticalScrollIndicator={false}
-                contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 120 }}
-                refreshControl={
-                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />
-                }
-                ListEmptyComponent={!loading ? (
-                    <View className="items-center justify-center py-20">
-                        <View
-                            className="w-24 h-24 rounded-full items-center justify-center mb-5"
-                            style={{ backgroundColor: COLORS.primary + '15' }}
-                        >
-                            <Ticket size={48} color={COLORS.primary} />
+            {/* Content List */}
+            {activeSection === 'TICKETS' ? (
+                <FlatList
+                    data={filteredTickets}
+                    renderItem={renderTicketItem}
+                    keyExtractor={item => item.id}
+                    showsVerticalScrollIndicator={false}
+                    contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 120 }}
+                    refreshControl={
+                        <RefreshControl refreshing={refreshingTickets} onRefresh={onRefreshTickets} tintColor={COLORS.primary} />
+                    }
+                    ListEmptyComponent={!loadingTickets ? (
+                        <View className="items-center justify-center py-20">
+                            <View
+                                className="w-24 h-24 rounded-full items-center justify-center mb-5"
+                                style={{ backgroundColor: COLORS.primary + '15' }}
+                            >
+                                <Ticket size={48} color={COLORS.primary} />
+                            </View>
+                            <Text className="text-text font-bold text-xl mb-2">
+                                {activeTab === 'ALL' ? 'No tickets yet' : `No ${activeTab.toLowerCase()} tickets`}
+                            </Text>
+                            <Text className="text-text-secondary text-sm text-center px-10">
+                                {activeTab === 'ALL'
+                                    ? 'Register for events to get your tickets here'
+                                    : 'Check other tabs to see your tickets'}
+                            </Text>
                         </View>
-                        <Text className="text-text font-bold text-xl mb-2">
-                            {activeTab === 'ALL' ? 'No tickets yet' : `No ${activeTab.toLowerCase()} tickets`}
-                        </Text>
-                        <Text className="text-text-secondary text-sm text-center px-10">
-                            {activeTab === 'ALL'
-                                ? 'Register for events to get your tickets here'
-                                : 'Check other tabs to see your tickets'}
-                        </Text>
-                    </View>
-                ) : null}
-            />
+                    ) : null}
+                />
+            ) : (
+                <FlatList
+                    data={filteredTransactions}
+                    renderItem={renderTransactionItem}
+                    keyExtractor={item => item.id}
+                    showsVerticalScrollIndicator={false}
+                    contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 120 }}
+                    refreshControl={
+                        <RefreshControl refreshing={refreshingTransactions} onRefresh={onRefreshTransactions} tintColor={COLORS.primary} />
+                    }
+                    ListEmptyComponent={!loadingTransactions ? (
+                        <View className="items-center justify-center py-20">
+                            <View
+                                className="w-24 h-24 rounded-full items-center justify-center mb-5"
+                                style={{ backgroundColor: COLORS.primary + '15' }}
+                            >
+                                <Receipt size={48} color={COLORS.primary} />
+                            </View>
+                            <Text className="text-text font-bold text-xl mb-2">
+                                {transactionFilter === 'ALL' ? 'No transactions yet' : `No ${transactionFilter.toLowerCase()} transactions`}
+                            </Text>
+                            <Text className="text-text-secondary text-sm text-center px-10">
+                                {transactionFilter === 'ALL'
+                                    ? 'Your payment history will appear here'
+                                    : 'Check other tabs to see your transactions'}
+                            </Text>
+                        </View>
+                    ) : null}
+                />
+            )}
         </SafeAreaView>
     );
 }

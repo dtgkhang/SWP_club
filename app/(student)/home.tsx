@@ -11,6 +11,9 @@ import { useToast } from '../../contexts/ToastContext';
 import { authService } from '../../services/auth.service';
 import { Event, eventService } from '../../services/event.service';
 
+// Event placeholder image for when no image is available or loading fails
+const EVENT_PLACEHOLDER = require('../../assets/images/event-placeholder.png');
+
 const { width } = Dimensions.get('window');
 const CARD_WIDTH = width - 40;
 const HORIZONTAL_CARD_WIDTH = width * 0.75;
@@ -164,7 +167,8 @@ export default function StudentHome() {
                     }}
                 >
                     <Image
-                        source={{ uri: event.club?.logoUrl || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800' }}
+                        source={event.imageUrl ? { uri: event.imageUrl } : (event.club?.logoUrl ? { uri: event.club.logoUrl } : EVENT_PLACEHOLDER)}
+                        placeholder={EVENT_PLACEHOLDER}
                         style={{ width: '100%', height: '100%', position: 'absolute' }}
                         contentFit="cover"
                         transition={500}
@@ -285,7 +289,8 @@ export default function StudentHome() {
                         {/* Image Section with Overlay */}
                         <View style={{ width: 130, position: 'relative' }}>
                             <Image
-                                source={{ uri: event.club?.logoUrl || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=400' }}
+                                source={event.imageUrl ? { uri: event.imageUrl } : (event.club?.logoUrl ? { uri: event.club.logoUrl } : EVENT_PLACEHOLDER)}
+                                placeholder={EVENT_PLACEHOLDER}
                                 style={{ width: '100%', height: '100%' }}
                                 contentFit="cover"
                                 transition={300}
@@ -394,7 +399,8 @@ export default function StudentHome() {
                     }}
                 >
                     <Image
-                        source={{ uri: event.club?.logoUrl || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=600' }}
+                        source={event.imageUrl ? { uri: event.imageUrl } : (event.club?.logoUrl ? { uri: event.club.logoUrl } : EVENT_PLACEHOLDER)}
+                        placeholder={EVENT_PLACEHOLDER}
                         style={{ width: '100%', height: '100%', position: 'absolute' }}
                         contentFit="cover"
                         transition={400}

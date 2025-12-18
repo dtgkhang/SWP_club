@@ -14,6 +14,7 @@ export interface Event {
     startTime?: string;
     endTime?: string;
     location?: string;
+    imageUrl?: string; // Event cover image
     isActive?: boolean;
     createdAt?: string;
     club?: {
@@ -103,5 +104,29 @@ export const eventService = {
             body: JSON.stringify({ qrCode }),
         });
         return response;
+    },
+
+    async submitFeedback(eventId: string, rating: number, comment?: string): Promise<any> {
+        const response = await api<{ success: boolean; message: string; data: any }>(`/events/${eventId}/feedback`, {
+            method: 'POST',
+            body: JSON.stringify({ rating, comment }),
+        });
+        return response;
+    },
+
+    async getEventFeedbacks(eventId: string): Promise<any[]> {
+        const response = await api<{ success: boolean; data: any[] }>(`/events/${eventId}/feedback`);
+        return response.data || [];
+    },
+
+    async getMyFeedback(eventId: string): Promise<any | null> {
+        try {
+            const feedbacks = await this.getEventFeedbacks(eventId);
+            // The API returns user's own feedback if they have one
+            return feedbacks.find((f: any) => f.isOwn) || null;
+        } catch {
+            return null;
+        }
     }
 };
+

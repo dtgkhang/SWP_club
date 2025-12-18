@@ -109,6 +109,13 @@ export default function StudentLayout() {
                 }}
             />
             <Tabs.Screen
+                name="events/feedback"
+                options={{
+                    href: null,
+                    tabBarStyle: { display: 'none' },
+                }}
+            />
+            <Tabs.Screen
                 name="payment"
                 options={{
                     href: null,
