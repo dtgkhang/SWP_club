@@ -82,8 +82,9 @@ export default function MembershipPaymentScreen() {
     const checkPaymentStatus = async () => {
         if (!transactionId) return;
         try {
+            // Use clubService which now calls the sync endpoint
             const result = await clubService.checkMembershipPaymentStatus(transactionId);
-            console.log('Payment status:', result);
+            console.log('Payment status check:', result);
 
             if (result.status === 'SUCCESS' || result.status === 'PAID') {
                 if (pollingInterval.current) clearInterval(pollingInterval.current);

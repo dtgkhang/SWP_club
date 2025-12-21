@@ -20,7 +20,14 @@ const getBaseUrl = () => {
 
 const DEV_API_URL = getBaseUrl();
 
-const API_BASE_URL = DEV_API_URL;
+// ========== NGROK CONFIGURATION ==========
+// Set USE_NGROK = true when testing on real device over 4G/mobile network
+// Set USE_NGROK = false when developing locally on simulator/emulator
+const USE_NGROK = true;
+const NGROK_URL = 'https://glyptic-katherina-unpreferably.ngrok-free.dev/api';
+// ==========================================
+
+const API_BASE_URL = USE_NGROK ? NGROK_URL : DEV_API_URL;
 const TOKEN_KEY = '@fpt_ucms_token';
 
 let accessToken: string | null = null;

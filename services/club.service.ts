@@ -121,13 +121,14 @@ export const clubService = {
         status: string;
         membership?: any;
     }> {
+        // Use sync endpoint to actively check status from PayOS
         const response = await api<{
             success: boolean;
             data: {
                 status: string;
                 membership?: any;
             };
-        }>(`/transactions/${transactionId}`);
+        }>(`/transactions/${transactionId}/sync`);
         return response.data || { status: 'PENDING' };
     }
 };
