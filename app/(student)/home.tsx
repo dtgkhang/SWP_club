@@ -3,10 +3,11 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { Bell, Calendar, ChevronRight, Clock, MapPin, Search, Sparkles, Star, TrendingUp, Users, Video, Zap } from 'lucide-react-native';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Animated, DimensionValue, Dimensions, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../../constants/theme';
+import { useCache } from '../../contexts/CacheContext';
 import { useToast } from '../../contexts/ToastContext';
 import { authService } from '../../services/auth.service';
 import { Event, eventService } from '../../services/event.service';
@@ -61,10 +62,11 @@ const HomeSkeleton = () => (
 export default function StudentHome() {
     const router = useRouter();
     const { showError } = useToast();
+    const cache = useCache();
     const [filter, setFilter] = useState('ALL');
     const [user, setUser] = useState<any>(null);
-    const [events, setEvents] = useState<Event[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [events, setEvents] = useState<Event[]>(cache.events); // Start with cached data
+    const [loading, setLoading] = useState(cache.events.length === 0); // Only show loader if no cache
     const [searchQuery, setSearchQuery] = useState('');
     const [debouncedSearch, setDebouncedSearch] = useState('');
 
@@ -72,69 +74,53 @@ export default function StudentHome() {
         loadProfile();
     }, []);
 
+    // Debounce search
     useEffect(() => {
         const timer = setTimeout(() => {
             setDebouncedSearch(searchQuery);
-        }, 500);
+        }, 300); // Reduced from 500ms to 300ms for faster response
         return () => clearTimeout(timer);
     }, [searchQuery]);
 
+    // Load events - use cache for instant display
     useEffect(() => {
         loadEvents();
-    }, [filter, debouncedSearch, user]);
+    }, [filter, user]);
 
     const loadProfile = async () => {
         try {
+            // Use cached profile if available
+            if (cache.userProfile) {
+                setUser(cache.userProfile);
+            }
             const { user: profile } = await authService.getProfile();
             setUser(profile);
+            cache.setUserProfile(profile);
         } catch (error: any) {
             showError('Profile Error', 'Could not load your profile');
         }
     };
 
-    const getUserClubIds = (): string[] => {
+    const getUserClubIds = useCallback((): string[] => {
         if (!user?.memberships) return [];
         return user.memberships
             .filter((m: any) => m.status === 'ACTIVE')
             .map((m: any) => m.clubId);
-    };
+    }, [user]);
 
     const loadEvents = async () => {
         try {
-            setLoading(true);
-            const typeFilter = filter === 'ALL' || filter === 'MY_CLUBS' ? undefined : filter;
-            const data = await eventService.getAllEvents({ type: typeFilter });
+            // Show cached data immediately
+            if (cache.events.length > 0 && events.length === 0) {
+                setEvents(cache.events);
+            }
 
-            // TEMPORARILY DISABLED: endTime filter
-            // const now = new Date();
-            // const availableEvents = data.filter((event: any) => {
-            //     if (event.endTime) {
-            //         const endTime = new Date(event.endTime);
-            //         if (endTime < now) return false;
-            //     }
-            //     return true;
-            // });
-            const availableEvents = data; // Show all events
-
-            const searchFilter = (events: Event[]) => {
-                if (!debouncedSearch.trim()) return events;
-                const query = debouncedSearch.toLowerCase();
-                return events.filter(e =>
-                    e.title?.toLowerCase().includes(query) ||
-                    e.description?.toLowerCase().includes(query) ||
-                    e.location?.toLowerCase().includes(query) ||
-                    e.club?.name?.toLowerCase().includes(query)
-                );
-            };
-
-            const searchedEvents = searchFilter(availableEvents);
-
-            if (filter === 'MY_CLUBS') {
-                const userClubIds = getUserClubIds();
-                const filtered = searchedEvents.filter(e => userClubIds.includes(e.clubId));
-                setEvents(filtered);
-            } else {
-                setEvents(searchedEvents);
+            // Fetch fresh data in background
+            const isStale = cache.isEventsStale();
+            if (isStale || cache.events.length === 0) {
+                if (cache.events.length === 0) setLoading(true);
+                const data = await cache.fetchEvents(isStale);
+                setEvents(data);
             }
         } catch (error: any) {
             showError('Loading Failed', 'Could not load events. Please try again.');
@@ -471,8 +457,34 @@ export default function StudentHome() {
         </TouchableOpacity>
     );
 
-    const trendingEvents = events.slice(0, 4);
-    const upcomingEvents = events.slice(1);
+    // Memoized filtered events for performance
+    const filteredEvents = useMemo(() => {
+        let result = events;
+
+        // Apply search filter
+        if (debouncedSearch.trim()) {
+            const query = debouncedSearch.toLowerCase();
+            result = result.filter(e =>
+                e.title?.toLowerCase().includes(query) ||
+                e.description?.toLowerCase().includes(query) ||
+                e.location?.toLowerCase().includes(query) ||
+                e.club?.name?.toLowerCase().includes(query)
+            );
+        }
+
+        // Apply type filter
+        if (filter === 'MY_CLUBS') {
+            const userClubIds = getUserClubIds();
+            result = result.filter(e => userClubIds.includes(e.clubId));
+        } else if (filter !== 'ALL') {
+            result = result.filter(e => e.type === filter);
+        }
+
+        return result;
+    }, [events, debouncedSearch, filter, getUserClubIds]);
+
+    const trendingEvents = useMemo(() => filteredEvents.slice(0, 4), [filteredEvents]);
+    const upcomingEvents = useMemo(() => filteredEvents.slice(1), [filteredEvents]);
 
     return (
         <SafeAreaView className="flex-1 bg-background" edges={['top']}>

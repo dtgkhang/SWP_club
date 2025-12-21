@@ -43,6 +43,18 @@ export default function ClubDetail() {
 
     useEffect(() => {
         if (id) {
+            // Reset state for new club
+            setClub(null);
+            setMembers([]);
+            setEvents([]);
+            setLoading(true);
+            setIsUserMember(false);
+            setCheckingMembership(true);
+            setCheckingApplication(true);
+            setHasPendingApplication(false);
+            setApplicationStatus(null);
+            setActiveTab('OVERVIEW');
+
             loadClubDetail();
         }
     }, [id]);

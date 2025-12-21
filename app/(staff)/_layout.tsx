@@ -2,10 +2,12 @@ import { Tabs, useRouter } from 'expo-router';
 import { Calendar, Home, ScanLine } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
+import { useCache } from '../../contexts/CacheContext';
 import { authService } from '../../services/auth.service';
 
 export default function StaffLayout() {
     const router = useRouter();
+    const cache = useCache();
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
@@ -20,11 +22,17 @@ export default function StaffLayout() {
                 return;
             }
 
-            // Check if user has any events as staff
-            const staffEvents = await authService.getMyStaffEvents();
-            const hasStaffAccess = staffEvents.length > 0;
+            // Check cached staff events first for instant access
+            if (cache.hasStaffAccess) {
+                setIsLoading(false);
+                // Refresh in background
+                cache.fetchStaffEvents();
+                return;
+            }
 
-            if (!hasStaffAccess) {
+            // If no cache, fetch fresh
+            const staffEvents = await cache.fetchStaffEvents(true);
+            if (staffEvents.length === 0) {
                 router.replace('/(student)/home');
                 return;
             }

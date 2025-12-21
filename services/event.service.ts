@@ -127,6 +127,94 @@ export const eventService = {
         } catch {
             return null;
         }
+    },
+
+    // ========== Staff APIs ==========
+
+    /**
+     * Get event participants list (Staff/Leader only)
+     * @param eventId Event ID
+     * @param filters Optional filters (checkedIn, search)
+     */
+    async getEventParticipants(
+        eventId: string,
+        filters?: { checkedIn?: boolean; search?: string }
+    ): Promise<{
+        participants: Array<{
+            id: string;
+            user: {
+                id: string;
+                fullName?: string;
+                email?: string;
+                studentCode?: string;
+                phone?: string;
+            };
+            ticket?: {
+                id: string;
+                qrCode?: string;
+                ticketType: string;
+                status: string;
+            };
+            checkedInAt?: string;
+            registeredAt?: string;
+        }>;
+        total: number;
+        checkedInCount: number;
+    }> {
+        const params = new URLSearchParams();
+        if (filters?.checkedIn !== undefined) {
+            params.append('checkedIn', filters.checkedIn.toString());
+        }
+        if (filters?.search) {
+            params.append('search', filters.search);
+        }
+
+        const queryString = params.toString();
+        const response = await api<{
+            success: boolean;
+            data: {
+                participants: any[];
+                total: number;
+                checkedInCount: number;
+            };
+        }>(`/events/${eventId}/participants${queryString ? `?${queryString}` : ''}`);
+
+        return response.data || { participants: [], total: 0, checkedInCount: 0 };
+    },
+
+    /**
+     * Check-in by email (for ONLINE events or backup for OFFLINE events)
+     * @param eventId Event ID
+     * @param email Attendee's email
+     */
+    async checkInByEmail(eventId: string, email: string): Promise<{
+        success: boolean;
+        message: string;
+        isAlreadyCheckedIn?: boolean;
+        data?: {
+            user?: {
+                id: string;
+                fullName?: string;
+                email?: string;
+                studentCode?: string;
+            };
+            checkedInAt?: string;
+        };
+    }> {
+        const response = await api<{
+            success: boolean;
+            message: string;
+            data: any;
+        }>('/checkin/email', {
+            method: 'POST',
+            body: JSON.stringify({ eventId, email }),
+        });
+        return {
+            success: response.success,
+            message: response.message,
+            isAlreadyCheckedIn: response.data?.isAlreadyCheckedIn,
+            data: response.data,
+        };
     }
 };
 

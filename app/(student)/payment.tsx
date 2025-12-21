@@ -23,7 +23,17 @@ export default function PaymentScreen() {
     const [showWebView, setShowWebView] = useState(false);
     const pollingInterval = useRef<any>(null);
 
+    // Reset all state when eventId changes (navigating to a new event)
     useEffect(() => {
+        setStatus('PENDING');
+        setTickets([]);
+        setErrorMessage('');
+        setTransactionId(null);
+        setPaymentUrl(null);
+        setShowWebView(false);
+        if (pollingInterval.current) clearInterval(pollingInterval.current);
+
+        // Start free registration if applicable
         if (isFree === 'true') {
             handleFreeRegistration();
         }
@@ -31,7 +41,7 @@ export default function PaymentScreen() {
         return () => {
             if (pollingInterval.current) clearInterval(pollingInterval.current);
         };
-    }, [isFree]);
+    }, [eventId, isFree]);
 
     // Polling Logic - Start when WebView is closed but payment not confirmed
     useEffect(() => {

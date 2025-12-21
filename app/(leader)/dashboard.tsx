@@ -4,7 +4,7 @@ import { useCallback, useState } from 'react';
 import { ActivityIndicator, RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../../constants/theme';
-import { authService } from '../../services/auth.service';
+import { useCache } from '../../contexts/CacheContext';
 import api from '../../services/api';
 
 interface ClubStats {
@@ -15,6 +15,7 @@ interface ClubStats {
 
 export default function LeaderDashboard() {
     const router = useRouter();
+    const cache = useCache();
     const [user, setUser] = useState<any>(null);
     const [club, setClub] = useState<any>(null);
     const [stats, setStats] = useState<ClubStats>({
@@ -35,7 +36,11 @@ export default function LeaderDashboard() {
         try {
             if (!refreshing) setLoading(true);
 
-            const { user: profile } = await authService.getProfile();
+            // Use cached profile if available (layout already fetched it)
+            let profile = cache.userProfile;
+            if (!profile) {
+                profile = await cache.fetchProfile();
+            }
             setUser(profile);
 
             const leaderMembership = profile?.memberships?.find(
@@ -45,7 +50,7 @@ export default function LeaderDashboard() {
             if (leaderMembership?.clubId) {
                 const clubId = leaderMembership.clubId;
 
-                // Parallel API calls
+                // Parallel API calls for club data
                 const [clubRes, membersRes, appsRes, eventsRes] = await Promise.all([
                     api<{ success: boolean; data: any }>(`/clubs/${clubId}`),
                     api<{ success: boolean; data: any; pagination?: any }>(`/clubs/${clubId}/members?limit=1`),

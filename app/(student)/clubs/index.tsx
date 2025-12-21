@@ -1,10 +1,11 @@
 import { Image } from 'expo-image';
 import { Link, useFocusEffect } from 'expo-router';
 import { ChevronRight, Clock, Crown, Heart, Search, Sparkles, Star, TrendingUp, Users } from 'lucide-react-native';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, DimensionValue, Dimensions, FlatList, RefreshControl, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../../../constants/theme';
+import { useCache } from '../../../contexts/CacheContext';
 import { useToast } from '../../../contexts/ToastContext';
 import { authService } from '../../../services/auth.service';
 import { Club, clubService } from '../../../services/club.service';
@@ -39,10 +40,11 @@ const ClubCardSkeleton = () => (
 
 export default function ClubList() {
     const { showError } = useToast();
+    const cache = useCache();
     const [activeTab, setActiveTab] = useState<'EXPLORE' | 'MY_CLUBS'>('EXPLORE');
-    const [allClubs, setAllClubs] = useState<Club[]>([]);
+    const [allClubs, setAllClubs] = useState<Club[]>(cache.clubs); // Start with cached data
     const [myClubIds, setMyClubIds] = useState<string[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(cache.clubs.length === 0); // Only show loader if no cache
     const [refreshing, setRefreshing] = useState(false);
     const [search, setSearch] = useState('');
 
@@ -54,18 +56,25 @@ export default function ClubList() {
 
     const loadData = async () => {
         try {
-            if (!refreshing) setLoading(true);
-            const [clubsResult, profile] = await Promise.all([
-                clubService.getAllClubs(1, 100),
-                authService.getProfile().catch(() => ({ user: null }))
-            ]);
+            // Show cached data immediately
+            if (cache.clubs.length > 0 && allClubs.length === 0) {
+                setAllClubs(cache.clubs);
+            }
 
-            setAllClubs(clubsResult.clubs || []);
-
+            // Load profile (for myClubIds)
+            const profile = await authService.getProfile().catch(() => ({ user: null }));
             const clubIds = (profile.user?.memberships || [])
                 .filter((m: any) => m.status === 'ACTIVE')
                 .map((m: any) => m.clubId);
             setMyClubIds(clubIds);
+
+            // Fetch fresh clubs data if stale
+            const isStale = cache.isClubsStale();
+            if (isStale || cache.clubs.length === 0) {
+                if (cache.clubs.length === 0 && !refreshing) setLoading(true);
+                const clubs = await cache.fetchClubs(isStale);
+                setAllClubs(clubs);
+            }
         } catch (error: any) {
             showError('Loading Failed', 'Could not load clubs');
         } finally {
@@ -76,22 +85,30 @@ export default function ClubList() {
 
     const onRefresh = () => {
         setRefreshing(true);
-        loadData();
+        cache.fetchClubs(true).then(clubs => {
+            setAllClubs(clubs);
+            setRefreshing(false);
+        });
     };
 
-    const query = search.toLowerCase().trim();
-    const filterClubs = (clubs: Club[]) => {
-        if (!query) return clubs;
-        return clubs.filter(c =>
-            c.name?.toLowerCase().includes(query) ||
-            c.description?.toLowerCase().includes(query)
-        );
-    };
+    // Memoized filtered clubs for performance
+    const { exploreClubs, myClubs, displayedClubs, featuredClub } = useMemo(() => {
+        const query = search.toLowerCase().trim();
+        const filterClubs = (clubs: Club[]) => {
+            if (!query) return clubs;
+            return clubs.filter(c =>
+                c.name?.toLowerCase().includes(query) ||
+                c.description?.toLowerCase().includes(query)
+            );
+        };
 
-    const exploreClubs = filterClubs(allClubs.filter(c => !myClubIds.includes(c.id)));
-    const myClubs = filterClubs(allClubs.filter(c => myClubIds.includes(c.id)));
-    const displayedClubs = activeTab === 'EXPLORE' ? exploreClubs : myClubs;
-    const featuredClub = activeTab === 'EXPLORE' && exploreClubs.length > 0 && !query ? exploreClubs[0] : null;
+        const explore = filterClubs(allClubs.filter(c => !myClubIds.includes(c.id)));
+        const my = filterClubs(allClubs.filter(c => myClubIds.includes(c.id)));
+        const displayed = activeTab === 'EXPLORE' ? explore : my;
+        const featured = activeTab === 'EXPLORE' && explore.length > 0 && !query ? explore[0] : null;
+
+        return { exploreClubs: explore, myClubs: my, displayedClubs: displayed, featuredClub: featured };
+    }, [allClubs, myClubIds, search, activeTab]);
 
     // Featured Club Card - Premium Design
     const FeaturedClubCard = ({ club }: { club: Club }) => (
@@ -179,7 +196,7 @@ export default function ClubList() {
         const eventCount = club._count?.events || 0;
 
         // Skip first item in Explore (it's featured)
-        if (activeTab === 'EXPLORE' && index === 0 && !query) return null;
+        if (activeTab === 'EXPLORE' && index === 0 && !search.trim()) return null;
 
         return (
             <Link
@@ -398,7 +415,7 @@ export default function ClubList() {
                             <View className="mb-3 mt-2">
                                 <Text className="text-text font-bold text-base">
                                     {activeTab === 'EXPLORE'
-                                        ? (query ? `Results for "${query}"` : 'All Clubs')
+                                        ? (search.trim() ? `Results for "${search.trim()}"` : 'All Clubs')
                                         : 'Your Memberships'}
                                 </Text>
                             </View>

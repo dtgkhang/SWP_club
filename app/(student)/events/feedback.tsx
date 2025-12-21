@@ -19,7 +19,16 @@ export default function EventFeedbackScreen() {
     const [comment, setComment] = useState('');
     const [existingFeedback, setExistingFeedback] = useState<any>(null);
 
+    // Reset state and load data when eventId changes
     useEffect(() => {
+        // Reset state for new event
+        setEvent(null);
+        setLoading(true);
+        setSubmitting(false);
+        setRating(0);
+        setComment('');
+        setExistingFeedback(null);
+
         loadData();
     }, [eventId]);
 

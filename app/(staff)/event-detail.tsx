@@ -5,8 +5,8 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Modal, RefreshControl, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../../constants/theme';
-import api from '../../services/api';
 import { authService } from '../../services/auth.service';
+import { eventService } from '../../services/event.service';
 import { useToast } from '../../contexts/ToastContext';
 
 interface Event {
@@ -98,8 +98,8 @@ export default function StaffEventDetail() {
     const loadTickets = async (eventIdToLoad: string) => {
         try {
             setLoadingTickets(true);
-            const response = await api<any>(`/events/${eventIdToLoad}/participants`);
-            const participants = response.data?.participants || [];
+            const data = await eventService.getEventParticipants(eventIdToLoad);
+            const participants = data.participants || [];
 
             if (Array.isArray(participants)) {
                 const mappedTickets = participants.map((p: any) => ({
@@ -152,17 +152,14 @@ export default function StaffEventDetail() {
 
         try {
             setEmailCheckinLoading(true);
-            const response = await api<any>('/checkin/email', {
-                method: 'POST',
-                body: JSON.stringify({
-                    eventId: selectedEvent.id,
-                    email: emailInput.trim().toLowerCase()
-                })
-            });
+            const response = await eventService.checkInByEmail(
+                selectedEvent.id,
+                emailInput.trim().toLowerCase()
+            );
 
             if (response.success) {
                 const userName = response.data?.user?.fullName || emailInput;
-                if (response.data?.isAlreadyCheckedIn) {
+                if (response.isAlreadyCheckedIn) {
                     showWarning('Already Checked In', `${userName} was already checked in before`);
                 } else {
                     showSuccess('Check-in Success!', `${userName} has been checked in`);

@@ -6,7 +6,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../../constants/theme';
 import { useToast } from '../../contexts/ToastContext';
 import { authService } from '../../services/auth.service';
-import api from '../../services/api';
 
 export default function EditProfileScreen() {
     const router = useRouter();
@@ -57,13 +56,10 @@ export default function EditProfileScreen() {
 
         try {
             setSaving(true);
-            await api('/users/profile', {
-                method: 'PATCH',
-                body: JSON.stringify({
-                    fullName: fullName.trim(),
-                    phone: phone.trim() || undefined,
-                    studentCode: studentCode.trim() || undefined
-                })
+            await authService.updateProfile({
+                fullName: fullName.trim(),
+                phone: phone.trim() || undefined,
+                studentCode: studentCode.trim() || undefined
             });
             showSuccess('Success', 'Profile updated successfully!');
             router.back();

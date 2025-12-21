@@ -72,6 +72,22 @@ export const authService = {
         return api<{ user: User }>('/users/getprofile');
     },
 
+    /**
+     * Update user profile
+     * @param data Profile data to update
+     */
+    async updateProfile(data: {
+        fullName?: string;
+        phone?: string;
+        avatarUrl?: string;
+        studentCode?: string;
+    }): Promise<{ success: boolean; user: User }> {
+        return api<{ success: boolean; user: User }>('/users/profile', {
+            method: 'PATCH',
+            body: JSON.stringify(data),
+        });
+    },
+
     async logout() {
         await clearAccessToken();
     },

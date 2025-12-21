@@ -4,33 +4,30 @@ import { useEffect, useState } from 'react';
 import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../../constants/theme';
+import { useCache } from '../../contexts/CacheContext';
 import { authService } from '../../services/auth.service';
 
 export default function ProfileScreen() {
     const router = useRouter();
-    const [user, setUser] = useState<any>(null);
-    const [hasStaffAccess, setHasStaffAccess] = useState(false);
+    const cache = useCache();
+    const [user, setUser] = useState<any>(cache.userProfile); // Start with cached
+    const [hasStaffAccess, setHasStaffAccess] = useState(cache.hasStaffAccess); // Start with cached
 
     useEffect(() => {
-        loadProfile();
-        checkStaffAccess();
+        loadData();
     }, []);
 
-    const loadProfile = async () => {
+    const loadData = async () => {
         try {
-            const { user: profile } = await authService.getProfile();
+            // Load profile - use cache, fetch fresh in background
+            const profile = await cache.fetchProfile();
             setUser(profile);
-        } catch (error) {
-            console.log('Error loading profile:', error);
-        }
-    };
 
-    const checkStaffAccess = async () => {
-        try {
-            const staffEvents = await authService.getMyStaffEvents();
-            setHasStaffAccess(staffEvents.length > 0);
+            // Load staff events - use cache, fetch fresh in background
+            const staffEvts = await cache.fetchStaffEvents();
+            setHasStaffAccess(staffEvts.length > 0);
         } catch (error) {
-            console.log('Error checking staff access:', error);
+            console.log('Error loading profile data:', error);
         }
     };
 

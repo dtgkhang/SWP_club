@@ -21,12 +21,23 @@ export default function MembershipPaymentScreen() {
     const [showWebView, setShowWebView] = useState(false);
     const pollingInterval = useRef<any>(null);
 
+    // Reset all state and initialize when clubId changes
     useEffect(() => {
+        // Reset state
+        setStatus('LOADING');
+        setPaymentLink(null);
+        setTransactionId(null);
+        setErrorMessage('');
+        setShowWebView(false);
+        if (pollingInterval.current) clearInterval(pollingInterval.current);
+
+        // Initialize payment
         initializePayment();
+
         return () => {
             if (pollingInterval.current) clearInterval(pollingInterval.current);
         };
-    }, []);
+    }, [clubId]);
 
     // Start polling when WebView is closed but payment not confirmed
     useEffect(() => {

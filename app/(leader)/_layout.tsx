@@ -2,10 +2,12 @@ import { Tabs, useRouter } from 'expo-router';
 import { FileText, Home, Users } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { Platform, StyleSheet, View } from 'react-native';
+import { useCache } from '../../contexts/CacheContext';
 import { authService } from '../../services/auth.service';
 
 export default function LeaderLayout() {
     const router = useRouter();
+    const cache = useCache();
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
@@ -20,8 +22,22 @@ export default function LeaderLayout() {
                 return;
             }
 
-            const { user } = await authService.getProfile();
-            const hasLeaderRole = user?.memberships?.some(
+            // Check cached profile first for instant access
+            if (cache.userProfile) {
+                const hasLeaderRole = cache.userProfile.memberships?.some(
+                    (m: any) => m.role === 'LEADER' && m.status === 'ACTIVE'
+                );
+                if (hasLeaderRole) {
+                    setIsLoading(false);
+                    // Refresh profile in background
+                    cache.fetchProfile();
+                    return;
+                }
+            }
+
+            // No cache, fetch fresh
+            const profile = await cache.fetchProfile(true);
+            const hasLeaderRole = profile?.memberships?.some(
                 (m: any) => m.role === 'LEADER' && m.status === 'ACTIVE'
             );
 

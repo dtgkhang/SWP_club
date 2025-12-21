@@ -20,6 +20,13 @@ export default function EventDetail() {
 
     useEffect(() => {
         if (id) {
+            // Reset state for new event
+            setEvent(null);
+            setLoading(true);
+            setHasRegistered(false);
+            setCheckingRegistration(true);
+            setUserTicket(null);
+
             loadEventDetail();
             checkRegistration();
         }

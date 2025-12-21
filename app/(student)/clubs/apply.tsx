@@ -1,6 +1,6 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowLeft, CheckCircle, Send } from 'lucide-react-native';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS } from '../../../constants/theme';
@@ -14,6 +14,13 @@ export default function ClubApplication() {
     const [reason, setReason] = useState('');
     const [submitted, setSubmitted] = useState(false);
     const [loading, setLoading] = useState(false);
+
+    // Reset state when clubId changes (navigating to a different club)
+    useEffect(() => {
+        setReason('');
+        setSubmitted(false);
+        setLoading(false);
+    }, [clubId]);
 
     const handleSubmit = async () => {
         if (!reason.trim()) {
