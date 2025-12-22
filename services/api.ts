@@ -79,6 +79,7 @@ export const apiFn = async <T>(endpoint: string, options: FetchOptions = {}): Pr
 
     const headers: Record<string, string> = {
         'Content-Type': 'application/json',
+        'ngrok-skip-browser-warning': 'true', // Skip ngrok browser warning page
         ...options.headers,
     };
 
